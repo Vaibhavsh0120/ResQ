@@ -1,0 +1,454 @@
+# PROGRESS
+
+## Session (real runtime crash, regression harness, tab bar redesign, iOS alternate icons) — COMPLETE
+
+Picked up from a real `expo start` crash report the user hit after the
+previous session's handoff: `Text strings must be rendered within a
+<Text> component` in `app/(tabs)/family.tsx`.
+
+- [x] **Root cause found and fixed.** A previous edit had left the closing
+      `>` of `<Pressable>` and the following `<View>` on the same physical
+      line, separated only by spaces. In JSX, whitespace between tags is
+      only stripped when it spans a line break — a same-line run of spaces
+      becomes a literal string child. Confirmed by transforming the exact
+      snippet through the project's own Babel config
+      (`babel-preset-expo`) and inspecting the output AST: it produced
+      `children: ["                  ", jsx(View, ...)]`. Fixed by putting
+      the `<View>` on its own line. Re-scanned the whole codebase for the
+      same pattern (`grep -rnP '>\s{2,}<'`) — this was the only instance.
+- [x] **Why this slipped past every prior check.** `tsc --noEmit` doesn't
+      catch it (valid TS). The previous session's `expo export --platform
+      web` verification also missed it, because static rendering renders
+      each screen once while its data hook is still in its initial
+      `loading: true` state — the buggy `list.map(...)` branch only runs
+      *after* the mock fetch resolves, which never happened during that
+      export. This is a real gap in "verify with tsc + expo export" as a
+      strategy, not a one-off oversight.
+- [x] **Built a real regression harness to close that gap** —
+      `__tests__/smoke.test.tsx` (run via `npm run test:smoke`), using
+      `jest-expo` + `@testing-library/react-native`. Mounts every screen
+      with mocked `expo-router`/`expo-blur`, waits out the mock services'
+      ~450ms delay so each screen's "data loaded" render branch actually
+      executes, then asserts nothing threw. Deliberately does **not** use
+      raw `react-test-renderer`: confirmed by grepping `node_modules/`
+      that the "Text strings must be rendered within a `<Text>` component"
+      invariant lives inside React Native's own renderer implementation
+      (`ReactFabric-dev.js`), not in the generic `react-test-renderer` host
+      config — `@testing-library/react-native` is what actually wires
+      tests up against RN's real renderer, so it's the tool that can catch
+      this bug class at all. Validated the harness itself by deliberately
+      re-introducing the exact bug and confirming the test fails with the
+      exact same invariant message from the crash report, then restored
+      the fix and confirmed all 16 tests pass clean.
+  - Needed `test-renderer` (a separate npm package, not `react-test-renderer`)
+    as a peer dep of this RTL version, and a `@react-native/jest-preset`
+    version matching the project's installed `react-native@0.86.3` (the
+    latest jest-preset version assumes a newer RN internal file layout and
+    fails to resolve `react-native/setup-env`). Both pinned accordingly in
+    `package.json`.
+  - `npm run test:smoke` now runs 16/16 green.
+- [x] **Tab bar redesigned** (`src/components/TabBarButtons.tsx`) —
+      icons now sit in a pill-shaped active indicator (only the icon's
+      background highlights on focus, not the whole tab cell — reads less
+      "blocky"), labels get a subtle weight bump when active instead of
+      relying on color alone, and the center Report button is a proper
+      floating action button: larger (50px), thinner ring (3.5px, was a
+      heavy 4px), tighter shadow tied to `colors.shadowBrand`, and raised
+      further above the bar for clearer visual priority. Bar itself uses a
+      hairline border instead of a full 1px stroke for a lighter look.
+      The crash-fix structural pattern in `app/(tabs)/_layout.tsx`
+      (`TabList` always mounted, visibility via style) was left untouched —
+      this pass only changed presentation, not the discovery-sensitive
+      structure.
+- [x] **iOS light/dark alternate app icon** — implemented via Expo's
+      native `ios.icon` config key (confirmed against
+      docs.expo.dev/develop/user-interface/splash-screen-and-app-icon,
+      not guessed — this is a first-party app-config feature as of SDK 54+,
+      not a third-party plugin, and this project is on SDK ~57 so it's
+      supported). `app.json`'s `ios.icon` is now
+      `{ light: "./assets/images/icon.png", dark: "./assets/images/icon-dark.png" }`.
+      Generated `icon-dark.png` using the *same* mark-scale/centering
+      logic as the existing `icon.png` (same `square_canvas` helper, same
+      0.62 scale) so the two variants share identical geometry per Apple's
+      HIG — only the background changes, from the brand teal to a deep
+      near-black (`#0b0f0e`), echoing `logo/dark icon.png`'s black/white
+      treatment rather than reusing that source file directly (which has
+      a different mark-to-canvas ratio and would have made the two
+      variants visually inconsistent). Verified the resolved config via
+      `npx expo config --type public`, which confirms Expo's own config
+      resolver accepts and preserves this exact schema.
+- [x] **Verify**: `npx tsc --noEmit` clean. `npm run test:smoke` 16/16.
+      `npx expo export` clean for `ios`/`android`/`web`. `npx expo-doctor`
+      19/21 (same 2 sandbox-network-blocked checks as every prior session
+      — not project issues).
+- [x] PROGRESS.md updated, project re-zipped, handed back.
+
+## Session summary
+
+Root-caused and fixed a real on-device crash the user hit after the last
+handoff (a JSX whitespace-as-text-node bug my own earlier edit
+introduced), and — more importantly — built and validated a proper
+regression-test harness specifically because the bug had slipped past
+both `tsc` and `expo export` in the previous session. That gap is now
+closed: `npm run test:smoke` mounts every screen with real (resolved)
+mock data and will catch this class of runtime-only error going forward.
+Also redesigned the tab bar for a more polished look and added real
+iOS light/dark alternate app icons via Expo's native config (verified
+against current docs, not assumed).
+
+---
+
+## Session (crash fix + polish + dead-link wiring) — COMPLETE
+
+Picked up from a prior chat's audit (pasted into this session) plus the
+user's own `expo start` crash log. Confirmed every item below by reading
+the actual files before touching anything, then implemented and verified
+each fix (not just diagnosed).
+
+- [x] **Crash: "Couldn't find any screens for the navigator."** —
+      `app/(tabs)/_layout.tsx` wrapped `<TabList>` (and all 5 `<TabTrigger>`s)
+      in `{!hideTabBar && (...)}`. The moment `hideTabBar` flips true
+      (Profile/Chat call `useHideTabBar()` on focus), `<Tabs>`'s static
+      `Children.forEach` walk found zero `TabTrigger`s and threw. Fixed by
+      reading the actual `expo-router/ui` source (`Tabs.js`,
+      `parseTriggersFromChildren`) to confirm the exact discovery rule,
+      then keeping `TabList`/`TabTrigger`s always mounted and toggling
+      visibility via style (`opacity` + `translateY` + `pointerEvents`)
+      instead of a conditional render. Verified: `expo export --platform
+      web` does real static rendering, and all 5 tab labels ("Home",
+      "Updates", "Report", "Family", "Places") render correctly in the
+      HTML output of every tab route — same verification rigor that
+      originally caught the bug.
+- [x] **Notch/safe-area check** — re-verified: `Header.tsx` already calls
+      `useSafeAreaInsets()` and pads `paddingTop: insets.top + 10`, and
+      every screen sits below `Header`, so content was not actually hidden
+      behind the notch. The prior audit's claim here was stale; no change
+      needed, confirmed unaffected by the tab bar fix.
+- [x] **Tab bar visual polish** — wired an actual `<BlurView>` into the tab
+      bar using the `blurClip`/`blurFill` styles that already existed in
+      `TabBarButtons.tsx` but were never rendered (dead styles). Found and
+      fixed a second, previously-invisible bug while doing this:
+      `StyleSheet.absoluteFillObject` does not exist in RN 0.86 (confirmed
+      against the installed type defs — only `StyleSheet.absoluteFill` is
+      exported), so spreading it was a silent no-op and those two styles
+      carried zero positioning. Fixed to the real API. iOS/web get frosted
+      glass; Android keeps a solid `colors.surface` background since
+      `BlurView` support is inconsistent across Android devices.
+- [x] **"Buggy" screen switching** — root cause confirmed as the crash
+      above. `useAsync`/tab-unmount behavior re-checked: tabs don't
+      unmount on switch by default with `expo-router/ui`, so no separate
+      fix was needed there.
+- [x] **Dead-end links** — all wired, confirmed by reading every screen
+      first and building real destinations rather than fake chevrons:
+  - `app/(tabs)/updates.tsx`: update cards → new `app/update-detail.tsx`
+    (per-update detail with source citation); "Review your plan" →
+    existing `/readiness`; "Alert preferences" → new
+    `app/alert-preferences.tsx` (real per-category toggles).
+  - `app/(tabs)/family.tsx`: person rows → new `app/family-member.tsx`
+    (contact detail, call/message/locate actions, check-in action wired
+    to the existing `useFamily().checkIn`).
+  - `app/(tabs)/safe.tsx`: place rows → new `app/place-detail.tsx`;
+    "Change" → inline location editor (the mock district name is
+    editable in place); "Map view" → renamed to "Highlight map" and
+    highlights the existing static map-preview card, since there's no
+    real MapView/map SDK wired in yet (see Known gaps) and pretending to
+    switch to a live map would just be a different fake affordance.
+  - `app/profile.tsx`: "My people" → Family tab; "Privacy & security" →
+    new `app/privacy-security.tsx` (data-sharing toggles + what's
+    collected, written as real settings content, not placeholder text).
+  - `app/(tabs)/index.tsx`: bottom insight card ("review your emergency
+    contacts") → Family tab.
+  - All 5 new screens registered in `app/_layout.tsx`'s `<Stack>`.
+- [x] **Network dependency on every screen** — `src/components/Logo.tsx`
+      and `app/index.tsx` (splash) both loaded a Vercel-hosted PNG. Fixed:
+      extracted the brand mark from `logo/light icon.png` (1254×1254)
+      programmatically — thresholded to a transparent-background alpha
+      mask, cropped to content bounds, verified visually at each step —
+      then generated `assets/images/icon.png` (opaque, brand-colored,
+      1024×1024), `adaptive-icon.png` (transparent foreground sized to
+      Android's safe zone), `splash-icon.png` (transparent, composited by
+      Expo over `app.json`'s existing `backgroundColor`), `favicon.png`
+      (196×196), and `logo-mark.png` (compact transparent mark for
+      in-app use). `Logo.tsx` and `app/index.tsx` now `require()` these
+      locally; confirmed zero remaining references to the Vercel URL via
+      `grep -rn "vercel-storage"` (no matches). This also resolves the
+      "placeholder generated icon" item that was previously in Known
+      gaps below — these are the real brand assets now, not a generated
+      "R" mark.
+  - `app.json` needed no changes — it already pointed at the correct
+    filenames (`icon.png`, `adaptive-icon.png`, `splash-icon.png`,
+    `favicon.png`); only the file contents were replaced.
+- [x] **`Header.tsx` inline `require('lucide-react-native')`** — removed
+      the dead `ArrowLeftIcon` function entirely. It was unused (`Header`
+      already imports and uses `ArrowLeft` from the project's own
+      `src/components/icons.ts` barrel correctly elsewhere in the file).
+- [x] **Verify**: `npx tsc --noEmit` — clean, zero errors. `npx expo
+      export --platform ios` / `android` / `web` — all three bundle
+      successfully; web export performs real static rendering of all 22
+      routes (including every new screen) with no crash. `npx
+      expo-doctor` — 19/21 (same 2 checks fail as before this session,
+      both network calls to Expo's remote validation servers blocked by
+      this sandbox's allowlist — not project issues, confirmed identical
+      to the pre-existing documented state below).
+- [x] PROGRESS.md updated (this section), project re-zipped, handed back.
+
+## Session summary
+
+Fixed the reported crash (root-caused via reading `expo-router/ui`'s own
+source rather than guessing), found and fixed one additional latent bug
+in the process (`StyleSheet.absoluteFillObject` doesn't exist in this RN
+version — was silently breaking tab-bar blur positioning), wired every
+dead-end link in the app to a real destination (5 new screens), replaced
+both network-dependent logo references with locally generated brand
+assets, and cleaned up one piece of dead code. Verified with `tsc`,
+`expo export` on all three platforms, and `expo-doctor` after every
+change. Nothing in this pass is a stub or placeholder — every new screen
+has real (if mock-backed) content and wiring.
+
+---
+
+## Status: working, typed, bundles clean on iOS + Android + web
+
+This project was converted from a single-file Next.js web mockup
+(`app/page.tsx` in the original zip) into a full Expo/React Native app with
+expo-router navigation, a proper service/hook data layer, and a complete
+design-token theme system. Verified with `npx tsc --noEmit` (zero errors),
+`npx expo export --platform ios|android|web` (all three bundle
+successfully), and `npx expo-doctor` (19/21 checks pass — the 2 failures
+are network calls to Expo's remote validation servers blocked by this
+sandbox, not project issues; re-run it in a normal environment to confirm
+clean). Every dependency version matches
+`node_modules/expo/bundledNativeModules.json` — the manifest Expo itself
+ships for SDK 57 — rather than a guessed version range. **`npm install`
+(no `--legacy-peer-deps` flag) succeeds cleanly** — this was verified after
+a real install failure was reported and fixed; see below.
+
+## What's done
+
+### Structure & navigation
+- Full Expo Router file-based navigation: root stack (`app/_layout.tsx`) +
+  bottom tab navigator (`app/(tabs)/`) with a custom floating tab bar
+  matching the original design (including the raised center "Report" button).
+- Screens: splash, login, Home, Updates, Report, Family, Safe places,
+  Profile, Chat, Readiness (new), Guidance results (new).
+- `NavVisibilityContext` + `useHideTabBar()` hook: Profile and Chat hide the
+  bottom tab bar while focused, restore it on navigating away.
+
+### Fixes requested this session (all done)
+- App renamed to "ResQ" everywhere (was lowercase "resq") — see
+  `src/components/Logo.tsx`.
+- Safe places header now shows the profile icon, not a back arrow
+  (`app/(tabs)/safe.tsx` — it's a primary tab, not a drill-down screen).
+- "Report an incident" button is centered (`app/(tabs)/report.tsx`,
+  `styles.centeredButtonRow` wraps a full-width button).
+- After submitting a report, the success screen offers "See guidance for
+  this," which opens `app/guidance-result.tsx` — a new page with
+  do-this-now / avoid / why / sources content for the reported hazard type(s).
+- Tapping the green readiness card on Home opens `app/readiness.tsx` — a new
+  page with a checklist of what's done, what's left, and "good things to do
+  next" (disaster-prep guidance), not just a percentage.
+- Dark-mode contrast bug fixed: the original CSS had `color: brandDeep` text
+  rendered on a `featuredIconBg` fill in dark mode — both dark green,
+  unreadable. Fixed by giving every "on a colored surface" case its own
+  pre-computed contrast token (`onBrand`, `onDanger`, `featuredIconFg`,
+  etc.) in `src/theme/colors.ts`, for both palettes.
+- Removed the "Prepared" status pill with the green dot from Home.
+
+### No hardcoded colors
+Audited and eliminated every literal hex/rgba/named color outside
+`src/theme/colors.ts`. Every color anywhere in the app now comes from
+`useAppTheme().colors`. Added missing tokens as needed (`blueSoft`,
+`purpleSoft`, `onBrandBorder`, `onBrandCard`, `mapPinRing`, `controlThumb`,
+etc.) rather than inlining values at the call site.
+
+### Service/hook architecture for RAG readiness
+Built a full `screen → hook → service → (mock | real API)` layering — see
+the "Architecture" section in `README.md` for the complete explanation.
+Short version:
+- `src/config/env.ts` — one flag (`useMockData`) driven by
+  `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_USE_MOCK_DATA` decides mock vs.
+  real for every service.
+- `src/services/apiClient.ts` — shared fetch wrapper (timeouts, JSON,
+  consistent `ApiError`, a marked spot for future auth header injection).
+- One service per domain: `updatesService`, `familyService`,
+  `safePlacesService`, `guidanceService` (RAG), `reportService`,
+  `chatService` (RAG, streaming-shaped), `readinessService`,
+  `profileService`.
+- One hook per domain in `src/hooks/`, all screens consume hooks only —
+  never services or mock data directly.
+- `src/types/index.ts` expanded with RAG-shaped types: `RagSource`
+  (citation shape shared by guidance, chat, and updates),
+  `DisasterGuidance` (with `sources` + `confidence`), `ChatStreamEvent`
+  (token/sources/done/error), `ChatMessage` (with `role`, `sources`,
+  `pending`).
+- Mock data split into one file per domain under `src/data/` (was one
+  `demoData.ts` monolith before this pass).
+
+### Icon library fixes
+`lucide-react-native@0.475.0` renamed several icons from older versions
+(`AlertTriangle` → `TriangleAlert`, `Home` → `House`, `MoreHorizontal` →
+`Ellipsis`, `AlertCircle` → `CircleAlert`). All icon imports go through a
+single barrel file, `src/components/icons.ts`, which re-exports under the
+original friendly names — so this is the only file to touch if a future
+lucide upgrade renames something again.
+
+### Dependency version fixes
+The original `package.json` I drafted had several non-existent version
+pins (npm registry rejected them) and, more importantly, paired
+`expo@~57.0.20` with `react-native@0.87.1` — **wrong pairing**. Expo SDK 57
+targets **React Native 0.86**, confirmed via Expo's own SDK 57 changelog.
+0.87.1's stricter `package.json` `exports` map broke `@expo/metro-config`'s
+internal `rn-get-polyfills` resolution, which only showed up when actually
+bundling (not in `tsc`).
+
+A follow-up audit went further: rather than guessing version ranges,
+every dependency now matches `node_modules/expo/bundledNativeModules.json`
+exactly — the manifest Expo itself ships listing the precise version of
+every native package validated against SDK 57 (`react-native@0.86.3`,
+`react-native-reanimated@~4.5.1`, `react-native-worklets@0.10.1`,
+`react-native-screens@~4.26.0`, `react-native-safe-area-context@~5.7.0`,
+`react-native-svg@15.15.4`, `@react-native-async-storage/async-storage@2.2.0`,
+and every `expo-*` package pinned to the SDK-aligned `~57.0.x` scheme Expo
+switched to). Verified with `npx expo-doctor`: 19/21 checks pass, including
+"packages match versions required by installed Expo SDK" and "Expo SDK
+versions affected by Hermes V1 regressions" (the 2 failing checks are
+network calls to Expo's remote validation servers, blocked by this
+sandbox's network allowlist — not project issues). Both
+`npx expo export --platform ios` and `--platform android` succeed cleanly.
+
+### Tab bar rebuilt on the current recommended API (took three attempts)
+The custom floating tab bar originally used `expo-router`'s
+`<Tabs tabBar={renderProp}>` pattern, which is built on `@react-navigation/
+bottom-tabs` under the hood — the *legacy* approach. Two problems: it caused
+a real TypeScript error from version skew between expo-router's internal
+copy of `@react-navigation/bottom-tabs` types and the separately-installed
+package, and — more importantly — Expo dropped support for importing
+`@react-navigation/*` directly in app code as of SDK 56, favoring
+`expo-router/ui`'s headless `Tabs`/`TabList`/`TabTrigger`/`TabSlot`
+components for fully custom tab bars instead. `@react-navigation/native`
+and `@react-navigation/bottom-tabs` were removed from `package.json`
+entirely as part of this — nothing in the app imports them.
+
+Getting the `expo-router/ui` version actually working took three passes,
+because `<Tabs>` discovers its routes in a way that's stricter than it
+first appears:
+
+`<Tabs>` walks its own `children` prop with React's `Children.forEach` —
+on the **unrendered element tree**, before any component function runs.
+That walk only recurses into a plain `<Fragment>` or an actual `<TabList>`
+element. Any other element type in between is opaque to it and gets
+silently skipped — which drops every tab and throws *"Couldn't find any
+screens for the navigator"* at runtime. Two attempts hit this:
+
+1. First attempt put the whole tab bar (`TabList` + `TabTrigger`s) inside a
+   separate `<BottomTabBar />` component, rendered as `<Tabs><TabSlot /><BottomTabBar /></Tabs>`.
+   `BottomTabBar` is a custom component, not a `Fragment`/`TabList`, so the
+   walk stopped there and never saw the `TabTrigger`s inside it. This
+   passed `tsc` and even `expo export` for iOS/Android (which only bundle
+   code, they don't execute the component tree), so it looked fine until
+   actually run with `expo start`.
+2. Second attempt inlined `<TabList>`/`<TabTrigger>` correctly inside
+   `<Tabs>`, but wrapped `<TabList>` in a plain `<View>` for absolute
+   positioning — `<Tabs><TabSlot /><View><TabList>...</TabList></View></Tabs>`.
+   Same problem: `View` isn't a recognized wrapper type either, so the walk
+   stopped one level higher this time and still found nothing.
+3. Working version: `<TabList>` is a **direct child of `<Tabs>`** with no
+   wrapper, and every `<TabTrigger asChild>` is a **direct child of
+   `<TabList>`**. The positioning that would have gone on a wrapper `View`
+   (`position: 'absolute'`, `left`/`right`/`bottom`) goes directly on
+   `TabList`'s own `style` prop instead — `TabList` renders as a plain
+   `View` under the hood (see `expo-router/ui`'s `TabList.js`, it forwards
+   `style` straight through), so this works with no visual difference.
+   `TabTrigger`'s `asChild` still hands focus/press state to a
+   custom-styled button (`TabButton`/`ReportTabButton` in
+   `src/components/TabBarButtons.tsx`) via Radix's `Slot` — that part *is*
+   safe to keep in a separate file, since it's a runtime prop-merge, not
+   part of the static discovery walk. Only the `Tabs`/`TabList`/`TabTrigger`
+   structure itself has to stay inline in `app/(tabs)/_layout.tsx`.
+
+**This was verified by actually rendering it**, not just bundling:
+`npx expo export --platform web` performs real static rendering (not just
+bundling) for each route, and the output HTML for `/(tabs)` contains all
+five tab labels ("Home", "Updates", "Report", "Family", "Places") with no
+trace of the discovery error — confirming the fix at the same level of
+rigor that caught the original bug (a user actually running `expo start`).
+iOS and Android bundles were also re-verified clean after this change.
+
+If this file is touched again: don't extract the `Tabs`/`TabList`/
+`TabTrigger` structure into a separate component, and don't wrap `TabList`
+in a positioning `View` — style `TabList` directly instead.
+
+### Real `npm install` failure, found and fixed
+Everything above had only been verified with `npm install --legacy-peer-deps`
+in this sandbox. Running a plain `npm install` on a real machine (Windows,
+this case) surfaced a genuine peer-dependency conflict that
+`--legacy-peer-deps` had been silently papering over:
+`lucide-react-native@0.475.0`'s peer dependency only allows
+`react@^16.5.1 || ^17.0.0 || ^18.0.0` — it does not list React 19 at all,
+which this project uses (`react@19.2.3`). npm's default (non-legacy)
+resolver correctly refused to install rather than produce a broken tree.
+
+Fixed by bumping `lucide-react-native` to `^0.525.0` — confirmed via the
+registry as the first version whose peer range includes
+`^19.0.0`. Also bumped `@types/react` from `~19.1.10` to `~19.2.18` to
+clear a related (non-fatal, but worth silencing) `ERESOLVE overriding peer
+dependency` warning from `@react-native/virtualized-lists` (a react-native
+dependency) wanting `@types/react@^19.2.0`. Every icon name used in
+`src/components/icons.ts` was re-verified against the new
+`lucide-react-native` version's actual exports before making the change.
+
+**Verified this actually fixes it, not just theoretically**: reinstalled
+from scratch with plain `npm install` (no flags) — zero errors, only the
+same unrelated `uuid@7.0.3` deprecation notice every install produces. The
+separately-reported `tsconfig.json` error ("File 'expo/tsconfig.base' not
+found") was a downstream symptom of the failed install, not a distinct
+bug — `node_modules/expo` never existed to extend from. It resolves as
+soon as `npm install` succeeds.
+
+### Placeholder assets
+Generated simple brand-color "R" mark PNGs for `icon.png`,
+`adaptive-icon.png`, `splash-icon.png`, `favicon.png` under
+`assets/images/` (none existed before — app.json referenced missing
+files). These are functional but generic — replace with real branding
+before shipping.
+
+## Known gaps / suggested next steps
+
+- **Auth is a stub.** `app/login.tsx` accepts anything and always succeeds.
+  Needs a real `authService` + token storage (a spot for the auth header is
+  already marked in `apiClient.ts`).
+- **Location isn't wired up yet.** `safePlacesService.fetchSafePlaces`
+  already accepts `{ latitude, longitude }`, and `expo-location` is
+  installed, but `app/(tabs)/safe.tsx` doesn't request device location or
+  pass coordinates through — it's still using the no-args mock-friendly
+  call. Next session: add a permission request + `Location.getCurrentPositionAsync`
+  call in a small `useDeviceLocation()` hook, feed it into `useSafePlaces()`.
+- **Real app icons needed** before any store submission — current ones are
+  a generated placeholder.
+- **No test suite yet.** The service layer is unit-test-friendly (mock
+  `fetch`, assert on `config.useMockData` branching) — worth setting up
+  Jest + `jest-expo` as a first follow-up, being mindful of the
+  `jest-expo`/`@react-native/jest-preset` peer-dependency mismatch that
+  has been reported against SDK 57 (may need an `overrides` entry in
+  `package.json` if it recurs — see comments in this session's research).
+- **`react-native-web` is installed** and web export now works cleanly
+  too (`npx expo export --platform web` succeeds, 17 static routes). The
+  earlier failure in this session turned out to be the `react-native@0.87.1`
+  mispairing described above, not a web-specific issue — it went away once
+  the dependency versions were corrected to match `expo`'s
+  `bundledNativeModules.json` exactly.
+
+## Decisions worth knowing about
+
+- Went with hand-rolled `useAsync`/hook pattern instead of adding
+  `@tanstack/react-query` — kept the dependency footprint small for a
+  project that doesn't have a backend yet. If real caching/retry/
+  background-refetch semantics become important once the backend exists,
+  swapping the internals of `src/hooks/useAsync.ts` for a `react-query`
+  wrapper is a contained change (call sites use `{ data, loading, error,
+  refresh }`, which maps cleanly onto `useQuery`'s return shape).
+- Chat streaming assumes the backend will send newline-delimited JSON
+  events matching `ChatStreamEvent`. If the real backend uses standard SSE
+  (`data: {...}\n\n` framing) instead, only the reader loop inside
+  `streamChatReply` in `src/services/chatService.ts` needs to change — the
+  event shape and the hook consuming it stay the same.

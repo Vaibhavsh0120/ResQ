@@ -1,0 +1,31 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.orig.*
+
+# macOS
+.DS_Store
+
+# Xcode
+ios/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+
+# Android
+android/
+*.apk
+*.aab
+
+# Env
+.env*.local

@@ -1,0 +1,131 @@
+name: Build Mobile Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "What do you want to build?"
+        required: true
+        type: choice
+        options:
+          - apk
+          - ipa
+
+      release_tag:
+        description: "Release tag (example: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+      release_name:
+        description: "Release name"
+        required: true
+        default: "ResQ Mobile Build"
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Build Android APK
+    if: inputs.platform == 'apk'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo prebuild
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Prepare APK
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "release/ResQ-${{ inputs.release_tag }}.apk"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.release_tag }}" \
+            release/ResQ-${{ inputs.release_tag }}.apk \
+            --title "${{ inputs.release_name }}" \
+            --notes "ResQ Android APK - ${{ inputs.release_tag }}"
+
+  build-ios:
+    name: Build iOS IPA
+    if: inputs.platform == 'ipa'
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo prebuild
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Show Xcode information
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Build unsigned archive
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -workspace ResQ.xcworkspace \
+            -scheme ResQ \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/ResQ.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            archive
+
+      - name: Create unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R "$RUNNER_TEMP/ResQ.xcarchive/Products/Applications/ResQ.app" \
+                Payload/ResQ.app
+
+          zip -r \
+            "ResQ-${{ inputs.release_tag }}.ipa" \
+            Payload
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.release_tag }}" \
+            "ResQ-${{ inputs.release_tag }}.ipa" \
+            --title "${{ inputs.release_name }}" \
+            --notes "ResQ iOS IPA - ${{ inputs.release_tag }}"
