@@ -1,5 +1,127 @@
 # PROGRESS
 
+## Session (Icon backgrounds fixed, video asset cleanup) — COMPLETE
+
+Picked up two user-reported issues: a crash log showing `app/index.tsx`
+requiring a non-existent `../logo/Startup Animation Dark Mode.MP4`, and a
+repeated request that `assets/images` icons not have a green background —
+icons should be light/dark per theme instead.
+
+- [x] **Investigated the crash report first, before changing anything.**
+      Read the zip's actual `app/index.tsx`: it already requires
+      `../assets/videos/startup-light.mp4` / `startup-dark.mp4` (lowercase,
+      correct relative path), and both files exist at that path and are
+      registered as asset extensions in `metro.config.js`. So the crash the
+      user pasted reflects an **older** state of the code than what's in
+      this zip (likely their local checkout / a stale `expo start` cache
+      predates the fix from a previous session) — not a bug present in
+      these files. Confirmed via `grep -rn` that zero references to the old
+      `logo/...MP4` path remain anywhere in `app/`, `src/`, or config files.
+- [x] **Found and removed a real latent problem anyway**: `logo/` still
+      contained byte-identical duplicate copies of both `.mp4` files
+      (verified via `md5sum` — exact match with the `assets/videos/`
+      copies). Harmless to the build, but confusing (it's what made the
+      user's old crash trace look plausible at a glance) and needless
+      repo weight. Removed the two `.mp4` files from `logo/`; kept
+      `logo/light icon.png` and `logo/dark icon.png` there since those are
+      still the actual source-of-truth design files the icon generation
+      script reads from.
+- [x] **GitHub Action reviewed** (`.github/workflows/build-release.yml`):
+      structurally correct as-is — `actions/checkout@v4` will pick up
+      whatever's committed, `.gitignore` has no pattern that would exclude
+      `assets/videos/*.mp4` or `logo/*.png`, both video files are ~2.5–2.9MB
+      each (nowhere near GitHub's 100MB hard limit or even the 50MB soft
+      warning), no `assetBundlePatterns` restriction in `app.json` to
+      exclude them from the native build, and the Android/iOS jobs already
+      do a real `expo prebuild` + native build rather than relying on EAS
+      (so no `eas.json` asset-pattern config applies here either). No
+      changes made — nothing was actually broken here; flagged for the user
+      in the handoff below in case what they were seeing was a stale local
+      Metro cache or an outdated commit on their end, not a repo problem.
+- [x] **Fixed the actual green-background icon issue** — root cause:
+      `assets/images/icon.png` and `favicon.png` still had a solid
+      `rgb(22,76,74)` (`#164c4a`-family) fill behind the brand mark, left
+      over from before `icon-dark.png` was correctly redone in an earlier
+      session. Regenerated all system icon assets from the same two clean
+      source files (`logo/light icon.png` = black mark on white,
+      `logo/dark icon.png` = white mark on black) using one script so every
+      variant shares identical mark geometry (extracted the mark as an
+      alpha-only mask, thresholded on luminance, cropped to content
+      bounds, then re-centered at a fixed scale on each target canvas):
+  - `icon.png` — white background (`#ffffff`), black mark. Used as the
+    default/light iOS icon and the top-level `expo.icon`.
+  - `icon-dark.png` — near-black background (`#0b0f0e`), white mark.
+    Regenerated at the same scale/centering as `icon.png` for visual
+    consistency (previously generated separately, in an earlier session,
+    from the same source at the same 0.62 scale — now produced by the
+    same script run in one pass).
+  - `adaptive-icon.png` — Android adaptive-icon foreground: transparent
+    background, black mark. Deliberately scaled smaller (0.5, matching
+    the splash icon) rather than reusing the 0.62 scale the flat icons
+    use, because Android launchers crop adaptive-icon foregrounds to a
+    center "safe zone" (roughly the center 66% of the canvas, varies by
+    launcher mask shape) — the mark's wide horizontal arms would sit right
+    at the edge of that zone at 0.62 and risk clipping on circular/squircle
+    masks. `app.json`'s existing `android.adaptiveIcon.backgroundColor` is
+    `#ffffff`, so the transparent foreground shows a white system
+    background — no green anywhere in the composited result.
+  - `favicon.png` — same treatment as `icon.png` (white bg, black mark),
+    196×196.
+  - `splash-icon.png` (light) / new `splash-icon-dark.png` (dark) —
+    transparent, black mark / white mark respectively, 0.5 scale. **Wired
+    the new dark variant into `app.json`**: the `expo-splash-screen`
+    plugin config's `dark.image` previously pointed at the same
+    `splash-icon.png` used for light mode. That's a genuine bug this
+    session's icon fix would otherwise have introduced — a plain black
+    mark composited over the dark splash's `#000000` background would
+    have been invisible. Caught by actually compositing the generated
+    dark splash asset over black and inspecting it before finishing,
+    not just assuming the light asset would work for both.
+  - Verified with `PIL`: sampled corner pixels of every asset in
+    `assets/images/` to confirm alpha/RGB values match the intended
+    background (white/`#ffffff`, near-black/`#0b0f0e`, or fully
+    transparent alpha=0) with zero remaining `rgb(22,76,74)` pixels
+    anywhere. Also re-grepped `app.json` and `src/theme/colors.ts` for
+    the brand teal hex (`#164c4a`, `#1f6865`) — the only remaining hits
+    are legitimate in-app UI color tokens (buttons, the `Logo.tsx` badge
+    background, success-state color), not system icon files, so those
+    were correctly left untouched.
+- [x] **README.md updated**: removed a stale "app icons are placeholders,
+      generated brand-color 'R' mark" note in Known limitations (that
+      description was inaccurate even before this session — the real
+      brand mark was substituted in over a session ago; this pass just
+      also fixed its background color). Updated the structure-overview
+      line for `assets/images/` and added a line for `assets/videos/`.
+- [x] **Verify**: no `node_modules` present in this sandbox and no network
+      access, so `npx tsc --noEmit` / `npx expo-doctor` / `npm run
+      test:smoke` could not be executed here this session — none of this
+      session's changes touch `.ts`/`.tsx` source (only binary image
+      assets, `app.json`'s two splash-image path strings, `README.md`
+      prose, and deleting two duplicate `.mp4` files from `logo/`), so
+      there's no new surface for type or runtime errors. Recommend running
+      `npx expo-doctor` and `npm run test:smoke` once on a machine with
+      network access to confirm, per standard practice — flagged in the
+      handoff.
+
+## Session summary
+
+The reported crash (`../logo/...MP4` not found) doesn't reproduce against
+this zip's actual code — `app/index.tsx` already requires the correct
+`assets/videos/` files, which exist. Removed a confusing duplicate copy of
+those same video files that was still sitting in `logo/` (likely the
+source of the stale crash trace) and confirmed the GitHub Action has
+nothing that would exclude or mishandle either asset. The real, reproducible
+bug was the icon backgrounds: `icon.png` and `favicon.png` still carried
+the green brand-teal fill the user has asked to remove more than once.
+Regenerated every system icon variant (iOS light/dark, Android adaptive,
+web favicon, splash light/dark) from the same two clean source marks with
+consistent geometry and correct per-theme backgrounds (white / near-black /
+transparent — never green), and caught + fixed a follow-on bug the mark
+recoloring would otherwise have caused (dark splash screen using an image
+that only worked on a light background).
+
+---
+
 ## Session (Pre-Home-Screen Flow Redesign & App Config Fixes) — COMPLETE
 
 Redesigned the entire pre-home-screen experience, resolved `app.json` schema and version mismatches, added custom page transitions, and ensured responsive layout for phones and iPad/tablets across portrait and landscape.

@@ -48,7 +48,8 @@ src/
   services/                 data-fetching layer — see "Architecture" below
   hooks/                    React hooks screens actually call (useUpdates, useChat, ...)
 
-assets/images/              app icon, splash, favicon (placeholder brand mark — replace before shipping)
+assets/images/              app icon, splash, favicon — real brand mark, light/dark variants, no colored background
+assets/videos/               startup animation videos (light/dark mode)
 ```
 
 ## Architecture: how data flows
@@ -165,8 +166,6 @@ setting by default (`src/theme/ThemeContext.tsx`).
 
 ## Known limitations / next steps
 
-- **App icons are placeholders.** `assets/images/` contains a generated
-  brand-color "R" mark — replace with real app icons before shipping.
 - **Auth is a stub.** `login.tsx` accepts any input and always succeeds;
   wire it to a real auth service and add the token-injection point noted
   in `src/services/apiClient.ts` (`Authorization` header comment).
