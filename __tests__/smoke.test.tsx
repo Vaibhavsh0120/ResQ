@@ -27,8 +27,22 @@ import { render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/theme/ThemeContext';
 import { NavVisibilityProvider } from '@/context/NavVisibilityContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 const mockParams: { current: Record<string, string> } = { current: {} };
+
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
+jest.mock('expo-video', () => ({
+  useVideoPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  })),
+  VideoView: 'VideoView',
+}));
 
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
@@ -53,9 +67,11 @@ async function renderScreen(Component: React.ComponentType<any>) {
   return render(
     <SafeAreaProvider initialMetrics={initialSafeAreaMetrics}>
       <ThemeProvider>
-        <NavVisibilityProvider>
-          <Component />
-        </NavVisibilityProvider>
+        <AuthProvider>
+          <NavVisibilityProvider>
+            <Component />
+          </NavVisibilityProvider>
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -72,12 +88,18 @@ beforeEach(() => {
   mockParams.current = {};
 });
 
-jest.setTimeout(15000);
+jest.setTimeout(35000);
 
 // Screens with no async data dependency — mount and settle only.
 const staticScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/index.tsx (splash)', () => require('../app/index').default],
   ['app/login.tsx', () => require('../app/login').default],
+  ['app/register.tsx', () => require('../app/register').default],
+  ['app/onboarding/personal.tsx', () => require('../app/onboarding/personal').default],
+  ['app/onboarding/medical.tsx', () => require('../app/onboarding/medical').default],
+  ['app/onboarding/family.tsx', () => require('../app/onboarding/family').default],
+  ['app/onboarding/location.tsx', () => require('../app/onboarding/location').default],
+  ['app/onboarding/emergency.tsx', () => require('../app/onboarding/emergency').default],
   ['app/readiness.tsx', () => require('../app/readiness').default],
   ['app/guidance-result.tsx', () => require('../app/guidance-result').default],
   ['app/alert-preferences.tsx', () => require('../app/alert-preferences').default],

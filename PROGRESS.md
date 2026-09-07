@@ -1,6 +1,66 @@
 # PROGRESS
 
-## Session (real runtime crash, regression harness, tab bar redesign, iOS alternate icons) — COMPLETE
+## Session (Pre-Home-Screen Flow Redesign & App Config Fixes) — COMPLETE
+
+Redesigned the entire pre-home-screen experience, resolved `app.json` schema and version mismatches, added custom page transitions, and ensured responsive layout for phones and iPad/tablets across portrait and landscape.
+
+- [x] **App Config & Schema Fixes (`app.json`)**:
+      - Resolved all `expo-doctor` schema errors: removed deprecated `splash` property, removed invalid top-level `newArchEnabled`, and removed `android.edgeToEdgeEnabled`.
+      - Completely removed green brand color `#164c4a` from app-level configuration. System splash and background now use clean `#ffffff` (light) and `#000000` (dark).
+      - Updated `orientation` to `"default"` to support landscape on iPad and large devices.
+      - Integrated `expo-video` plugin in `app.json`.
+      - Ran `npx expo install --fix` to align dependencies with Expo SDK 57: updated `jest`, `@types/jest`, `react-native-reanimated`, and `typescript`.
+      - `npx expo-doctor` now passes **21/21 checks** (100% clean).
+
+- [x] **Startup Video Screen & Media Assets (`app/index.tsx`, `assets/videos/`)**:
+      - Moved startup videos into the standard project asset directory `assets/videos/`:
+        - `assets/videos/startup-light.mp4` (Light mode animation)
+        - `assets/videos/startup-dark.mp4` (Dark mode animation)
+      - Configured `metro.config.js` to explicitly register `mp4` and `MP4` asset extensions.
+      - Fullscreen video playback using `expo-video` (`VideoView` + `useVideoPlayer`).
+      - Dynamically selects video variant based on system theme:
+        - Light mode on a pure white `#ffffff` canvas.
+        - Dark mode on a pure black `#000000` canvas.
+      - On tap or on playback completion, smoothly fades out and transitions to `/login`.
+      - If user is already authenticated and onboarded, skips playback and navigates straight to `/(tabs)`.
+
+- [x] **GitHub Actions Workflow (`.github/workflows/build-release.yml`)**:
+      - Added explicit Java 17 setup (`actions/setup-java@v4` with Temurin JDK 17) for the Android build job to ensure full compatibility with modern React Native 0.86 / Expo SDK 57 Android Gradle builds.
+      - Verified `npm ci` succeeds without peer dependency or lockfile conflicts.
+      - Added `--clobber` to GitHub release creation so re-running a build on an existing tag updates release assets gracefully.
+
+- [x] **Auth State Management (`src/context/AuthContext.tsx`)**:
+      - Lightweight, persistent authentication context using `@react-native-async-storage/async-storage`.
+      - Supports `isLoggedIn`, `isGuest`, and `hasCompletedOnboarding`.
+      - Provides `login()`, `register()`, `loginAsGuest()` (emergency access), `completeOnboarding()`, and `logout()`.
+
+- [x] **Redesigned Login Page (`app/login.tsx`)**:
+      - Centered brand crest and modern minimalist layout constrained to `maxWidth: 480` for tablet/iPad responsiveness.
+      - Form inputs with clear active focus states, modern rounded design tokens, and password visibility toggle.
+      - Primary "Sign In" button, "Continue with Google" social action, and link to register.
+      - Prominent "Emergency App Access" button providing one-tap guest access straight to `/(tabs)` without credentials.
+
+- [x] **New Register Page (`app/register.tsx`)**:
+      - Matching premium design language with `maxWidth: 480` tablet centering.
+      - Inputs: Full Name, Email, Password, and Confirm Password with instant validation.
+      - On account creation, persists user credentials and advances immediately to the onboarding flow (`/onboarding/personal`).
+      - Also features "Emergency App Access" guest bypass.
+
+- [x] **Onboarding Setup Flow (`app/onboarding/`)**:
+      - Created reusable `OnboardingLayout` (`src/components/OnboardingLayout.tsx`) with animated progress indicators, step counters, headers, unified "Continue" / "Skip for now" actions, and `maxWidth: 520` centering for tablets in portrait and landscape.
+      - **Step 1: Personal Details (`app/onboarding/personal.tsx`)** — Full name (pre-populated), phone number, DOB, and blood type selector grid.
+      - **Step 2: Medical & Accessibility (`app/onboarding/medical.tsx`)** — Tag-style allergies chip input, medical conditions text area, and accessibility toggles (mobility, vision, hearing).
+      - **Step 3: Family Circle (`app/onboarding/family.tsx`)** — Add family members with relationship chips and phone numbers; displays removable member cards with avatar initials.
+      - **Step 4: Home Location (`app/onboarding/location.tsx`)** — Address, city/district, state, nearest landmark, and a one-tap "Use current location" button powered by `expo-location`.
+      - **Step 5: Emergency Contacts (`app/onboarding/emergency.tsx`)** — Select primary emergency contacts from family or add new contacts; "Complete Setup" marks onboarding complete in storage and enters `/(tabs)`.
+
+- [x] **Transitions & Animations (`app/_layout.tsx`)**:
+      - Stack transitions configured: `fade` for startup video, `slide_from_right` for login, register, and onboarding steps, and `fade` when transitioning to tabs.
+
+- [x] **Verification**:
+      - `npx expo-doctor` passes **21/21** checks.
+      - `npx tsc --noEmit` passes with **0 type errors**.
+      - `npm run test:smoke` passes **22/22 tests** across all screens (including all new onboarding steps, register, login, and splash).
 
 Picked up from a real `expo start` crash report the user hit after the
 previous session's handoff: `Text strings must be rendered within a

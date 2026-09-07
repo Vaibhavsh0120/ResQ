@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useAppTheme } from '@/theme/ThemeContext';
 import { NavVisibilityProvider } from '@/context/NavVisibilityContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 function RootStack() {
   const { isDark, colors } = useAppTheme();
@@ -17,9 +18,11 @@ function RootStack() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="index" options={{ animation: 'fade' }} />
+        <Stack.Screen name="login" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="register" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="chat" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="readiness" />
@@ -39,9 +42,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <NavVisibilityProvider>
-            <RootStack />
-          </NavVisibilityProvider>
+          <AuthProvider>
+            <NavVisibilityProvider>
+              <RootStack />
+            </NavVisibilityProvider>
+          </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

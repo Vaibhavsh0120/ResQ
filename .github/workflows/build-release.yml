@@ -40,6 +40,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
       - name: Install dependencies
         run: npm ci
 
@@ -66,7 +72,8 @@ jobs:
           gh release create "${{ inputs.release_tag }}" \
             release/ResQ-${{ inputs.release_tag }}.apk \
             --title "${{ inputs.release_name }}" \
-            --notes "ResQ Android APK - ${{ inputs.release_tag }}"
+            --notes "ResQ Android APK - ${{ inputs.release_tag }}" \
+            --clobber
 
   build-ios:
     name: Build iOS IPA
@@ -128,4 +135,5 @@ jobs:
           gh release create "${{ inputs.release_tag }}" \
             "ResQ-${{ inputs.release_tag }}.ipa" \
             --title "${{ inputs.release_name }}" \
-            --notes "ResQ iOS IPA - ${{ inputs.release_tag }}"
+            --notes "ResQ iOS IPA - ${{ inputs.release_tag }}" \
+            --clobber

@@ -1,87 +1,106 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Image, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
-import { useAppTheme } from '@/theme/ThemeContext';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useAuth } from '@/context/AuthContext';
 
-// Local brand mark — see Logo.tsx for why this replaced an external URL.
-const logoSource = require('../assets/images/logo-mark.png');
+// Local startup animations — stored in assets/videos/
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const lightVideo = require('../assets/videos/startup-light.mp4');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const darkVideo = require('../assets/videos/startup-dark.mp4');
 
-export default function Splash() {
-  const { colors } = useAppTheme();
-  const lineWidth = useRef(new Animated.Value(0)).current;
+export default function StartupScreen() {
+  const { isLoading, isLoggedIn, hasCompletedOnboarding } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const hasNavigated = useRef(false);
+
+  const videoSource = isDark ? darkVideo : lightVideo;
+  const player = useVideoPlayer(videoSource, (p) => {
+    p.loop = false;
+    p.muted = true;
+    p.play();
+  });
+
+  const navigateAway = useCallback(() => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+
+    // Fade out then navigate
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      if (isLoggedIn && hasCompletedOnboarding) {
+        router.replace('/(tabs)');
+      } else if (isLoggedIn && !hasCompletedOnboarding) {
+        router.replace('/onboarding/personal' as any);
+      } else {
+        router.replace('/login');
+      }
+    });
+  }, [fadeAnim, isLoggedIn, hasCompletedOnboarding]);
+
+  // If the user is already logged in and onboarded, skip the video entirely.
   useEffect(() => {
-    Animated.timing(lineWidth, {
-      toValue: 1,
-      duration: 1100,
-      useNativeDriver: false,
-    }).start();
+    if (!isLoading && isLoggedIn && hasCompletedOnboarding) {
+      router.replace('/(tabs)');
+      hasNavigated.current = true;
+    }
+  }, [isLoading, isLoggedIn, hasCompletedOnboarding]);
 
+  // Listen for video playback ending.
+  useEffect(() => {
+    if (!player) return;
+
+    const subscription = player.addListener('playToEnd', () => {
+      navigateAway();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [player, navigateAway]);
+
+  // Fallback timer in case video events don't fire (e.g. web).
+  useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace('/login');
-    }, 1300);
+      navigateAway();
+    }, 6000);
     return () => clearTimeout(timer);
-  }, [lineWidth]);
+  }, [navigateAway]);
+
+  const bgColor = isDark ? '#000000' : '#ffffff';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.brandDeep }]}>
-      <View style={[styles.mark, { backgroundColor: colors.onBrandOverlaySoft }]}>
-        <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
-      </View>
-      <Text style={[styles.brand, { color: colors.onBrand }]}>ResQ</Text>
-      <Text style={[styles.tagline, { color: colors.onBrandMuted }]}>Prepared for what matters.</Text>
-      <View style={[styles.loadingTrack, { backgroundColor: colors.onBrandOverlayFainter }]}>
-        <Animated.View
-          style={[
-            styles.loadingFill,
-            {
-              backgroundColor: colors.onBrand,
-              width: lineWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-            },
-          ]}
+    <Animated.View style={[styles.container, { backgroundColor: bgColor, opacity: fadeAnim }]}>
+      <Pressable style={styles.pressable} onPress={navigateAway}>
+        <VideoView
+          style={styles.video}
+          player={player}
+          nativeControls={false}
+          contentFit="contain"
         />
-      </View>
-    </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pressable: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
   },
-  mark: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  logoImage: {
-    width: 40,
-    height: 40,
-  },
-  brand: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -1,
-  },
-  tagline: {
-    fontSize: 13,
-    marginTop: 6,
-  },
-  loadingTrack: {
-    width: 120,
-    height: 3,
-    borderRadius: 2,
-    marginTop: 28,
-    overflow: 'hidden',
-  },
-  loadingFill: {
+  video: {
+    width: '100%',
     height: '100%',
-    borderRadius: 2,
   },
 });

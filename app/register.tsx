@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Animated,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,29 +12,36 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, LockKeyhole, ChevronRight } from '@/components/icons';
+import { AlertTriangle, ChevronRight, LockKeyhole, User } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
-import { radius, spacing } from '@/theme/colors';
+import { radius } from '@/theme/colors';
 import { useAuth } from '@/context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const logoSource = require('../assets/images/logo-mark.png');
 
-export default function Login() {
+export default function Register() {
   const { colors } = useAppTheme();
-  const { login, loginAsGuest } = useAuth();
+  const { register, loginAsGuest } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width > 600;
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [nameFocused, setNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmFocused, setConfirmFocused] = useState(false);
 
-  const onLogin = async () => {
-    await login({ name: 'Alex Chen', email: email || 'alex@example.com' });
-    router.replace('/(tabs)');
+  const passwordsMatch = password === confirmPassword || confirmPassword.length === 0;
+
+  const onRegister = async () => {
+    await register({ name: name || 'New User', email: email || 'user@example.com' });
+    router.replace('/onboarding/personal' as any);
   };
 
   const onGuestAccess = async () => {
@@ -43,8 +49,8 @@ export default function Login() {
     router.replace('/(tabs)');
   };
 
-  const onGoToRegister = () => {
-    router.push('/register' as any);
+  const onGoToLogin = () => {
+    router.back();
   };
 
   return (
@@ -67,23 +73,49 @@ export default function Login() {
               <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
             </View>
             <Text style={[styles.appName, { color: colors.foreground }]}>ResQ</Text>
-            <Text style={[styles.tagline, { color: colors.inkMuted }]}>
-              Prepared for what matters.
-            </Text>
           </View>
 
           {/* ── Welcome copy ── */}
           <View style={styles.copySection}>
             <Text style={[styles.heading, { color: colors.foreground }]}>
-              Welcome back
+              Create your account
             </Text>
             <Text style={[styles.subtext, { color: colors.inkMuted }]}>
-              Sign in to keep your safety plan, people, and places close.
+              Set up your safety profile so ResQ can keep you and your people protected.
             </Text>
           </View>
 
           {/* ── Form ── */}
           <View style={styles.formStack}>
+            {/* Full Name */}
+            <View>
+              <Text style={[styles.label, { color: colors.foreground }]}>Full name</Text>
+              <View style={styles.inputWithIcon}>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Alex Chen"
+                  autoCapitalize="words"
+                  onFocus={() => setNameFocused(true)}
+                  onBlur={() => setNameFocused(false)}
+                  style={[
+                    styles.input,
+                    styles.inputPadded,
+                    {
+                      borderColor: nameFocused ? colors.brand : colors.line,
+                      color: colors.foreground,
+                      backgroundColor: colors.surfaceSoft,
+                    },
+                  ]}
+                  placeholderTextColor={colors.inkFaint}
+                />
+                <View style={styles.inputIcon}>
+                  <User size={16} color={colors.inkFaint} />
+                </View>
+              </View>
+            </View>
+
+            {/* Email */}
             <View>
               <Text style={[styles.label, { color: colors.foreground }]}>Email address</Text>
               <TextInput
@@ -106,19 +138,15 @@ export default function Login() {
               />
             </View>
 
+            {/* Password */}
             <View>
-              <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-                <Pressable hitSlop={8}>
-                  <Text style={[styles.forgotText, { color: colors.brand }]}>Forgot?</Text>
-                </Pressable>
-              </View>
+              <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
               <View style={styles.inputWithIcon}>
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
-                  placeholder="••••••••"
+                  placeholder="At least 8 characters"
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => setPasswordFocused(false)}
                   style={[
@@ -138,47 +166,65 @@ export default function Login() {
               </View>
             </View>
 
-            {/* Sign in button */}
+            {/* Confirm Password */}
+            <View>
+              <Text style={[styles.label, { color: colors.foreground }]}>Confirm password</Text>
+              <View style={styles.inputWithIcon}>
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  placeholder="Re-enter your password"
+                  onFocus={() => setConfirmFocused(true)}
+                  onBlur={() => setConfirmFocused(false)}
+                  style={[
+                    styles.input,
+                    styles.inputPadded,
+                    {
+                      borderColor: !passwordsMatch
+                        ? colors.danger
+                        : confirmFocused
+                        ? colors.brand
+                        : colors.line,
+                      color: colors.foreground,
+                      backgroundColor: colors.surfaceSoft,
+                    },
+                  ]}
+                  placeholderTextColor={colors.inkFaint}
+                />
+                <View style={styles.inputIcon}>
+                  <LockKeyhole size={16} color={!passwordsMatch ? colors.danger : colors.inkFaint} />
+                </View>
+              </View>
+              {!passwordsMatch && (
+                <Text style={[styles.errorText, { color: colors.danger }]}>
+                  Passwords don't match
+                </Text>
+              )}
+            </View>
+
+            {/* Create Account button */}
             <Pressable
-              onPress={onLogin}
+              onPress={onRegister}
               style={({ pressed }) => [
                 styles.primaryButton,
                 { backgroundColor: colors.brandDeep },
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.primaryButtonText, { color: colors.onBrand }]}>Sign in</Text>
+              <Text style={[styles.primaryButtonText, { color: colors.onBrand }]}>
+                Create Account
+              </Text>
               <ChevronRight size={18} color={colors.onBrand} />
             </Pressable>
 
-            {/* Divider */}
-            <View style={styles.orDivider}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.line }]} />
-              <Text style={[styles.orText, { color: colors.inkFaint }]}>or</Text>
-              <View style={[styles.dividerLine, { backgroundColor: colors.line }]} />
-            </View>
-
-            {/* Google button */}
-            <Pressable
-              onPress={onLogin}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                { borderColor: colors.line, backgroundColor: colors.surface },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>
-                Continue with Google
-              </Text>
-            </Pressable>
-
-            {/* Register link */}
+            {/* Switch to login */}
             <View style={styles.switchRow}>
               <Text style={[styles.switchText, { color: colors.inkMuted }]}>
-                Don't have an account?{' '}
+                Already have an account?{' '}
               </Text>
-              <Pressable onPress={onGoToRegister} hitSlop={8}>
-                <Text style={[styles.switchLink, { color: colors.brand }]}>Register</Text>
+              <Pressable onPress={onGoToLogin} hitSlop={8}>
+                <Text style={[styles.switchLink, { color: colors.brand }]}>Sign in</Text>
               </Pressable>
             </View>
           </View>
@@ -203,7 +249,7 @@ export default function Login() {
 
           {/* ── Footer ── */}
           <Text style={[styles.footNote, { color: colors.inkFaint }]}>
-            By continuing, you agree to the Terms and Privacy Policy.
+            By creating an account, you agree to the Terms and Privacy Policy.
           </Text>
         </View>
       </ScrollView>
@@ -230,37 +276,33 @@ const styles = StyleSheet.create({
   // Brand
   brandSection: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 32,
+    marginTop: 12,
+    marginBottom: 28,
   },
   logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
   },
   logoImage: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
   },
   appName: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -1.2,
-  },
-  tagline: {
-    fontSize: 13,
-    marginTop: 4,
+    letterSpacing: -1,
   },
 
   // Copy
   copySection: {
-    marginBottom: 28,
+    marginBottom: 24,
   },
   heading: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     letterSpacing: -0.8,
     marginBottom: 8,
@@ -272,23 +314,13 @@ const styles = StyleSheet.create({
 
   // Form
   formStack: {
-    gap: 18,
+    gap: 16,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 7,
     letterSpacing: 0.2,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 7,
-  },
-  forgotText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   input: {
     height: 52,
@@ -308,6 +340,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
   },
+  errorText: {
+    fontSize: 11,
+    marginTop: 5,
+    fontWeight: '600',
+  },
 
   // Buttons
   primaryButton: {
@@ -322,32 +359,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-  },
-  secondaryButton: {
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Divider
-  orDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  orText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 
   // Switch row
@@ -393,5 +404,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     lineHeight: 16,
+    paddingBottom: 12,
   },
 });

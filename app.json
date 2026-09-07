@@ -3,16 +3,10 @@
     "name": "ResQ",
     "slug": "resq",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "resq",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#164c4a"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.resq.app",
@@ -24,9 +18,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#164c4a"
+        "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.resq.app"
     },
     "web": {
@@ -42,7 +35,13 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#164c4a"
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 120,
+            "resizeMode": "contain",
+            "backgroundColor": "#000000"
+          }
         }
       ],
       [
@@ -56,7 +55,8 @@
         {
           "photosPermission": "ResQ uses your photos to attach evidence to incident reports."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
