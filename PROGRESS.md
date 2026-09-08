@@ -851,3 +851,94 @@ section above).
   (no `node_modules`). Run `npm test` on a real machine to confirm the
   `Stack.Protected` refactor and theme changes don't break any of the
   existing screen-mount assertions.
+
+## Session: actual root cause of the tab bar layout bug found
+
+The previous session's tab bar fix (`flexDirection: 'column'` on `.tab`,
+raised-button `marginTop` adjustment) did not fix the reported bug — the
+same screenshot (icon and label side-by-side, Report button overlapping
+neighbors) came back. That ruled out my first theory and forced a proper
+investigation instead of another guess.
+
+### Root cause
+
+`TabButton` and `ReportTabButton` in `src/components/TabBarButtons.tsx`
+spread `{...rest}` **after** their own `style` prop:
+
+```jsx
+<Pressable
+  style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
+  {...rest}   // <-- rest.style, if present, wins — applied last
+>
+```
+
+In JSX, when the same prop appears twice in an element (once explicitly,
+once via a later spread), the later one wins. `rest` here is everything
+`TabTrigger`'s `asChild` Slot forwards to the wrapped component, and
+`expo-router/ui`'s `TabTrigger` **does** forward its own `style` through
+that slot (confirmed against Expo's own current official reference
+implementation at docs.expo.dev/router/advanced/custom-tabs, which
+explicitly separates `{ icon, children, isFocused, ...props }` and then
+applies its own `style` **after** `{...props}` for exactly this reason).
+So `rest.style` was silently overwriting `styles.tab`/`styles.reportTab`
+in their entirety — wiping out `flexDirection: 'column'`, `alignItems`,
+`gap`, all of it — which is what actually produced the side-by-side
+icon/label layout and the Report button's overlap. The `flexDirection:
+'column'` fix from the previous session was real and correct, it just
+never had a chance to apply, because the whole style object it lived in
+was being discarded before render.
+
+**Fix**: reordered both components to spread `{...rest}` first, then
+apply `style` last — matching Expo's own canonical `TabButton` example
+exactly. `style` no longer tries to merge with whatever `rest.style`
+might contain; it deliberately replaces it, same as the official
+reference does. The incoming `style` prop is destructured out (as
+`_incomingStyle`, unused) purely so it can't leak into `...rest` and get
+spread onto the `Pressable` a second time by accident.
+
+### Tab bar position, again
+
+Lowered further per repeated feedback: `bottomOffset` went from
+`Math.max(insets.bottom, 10) + 6` (original) → `- 4` (previous session)
+→ `- 8` (this session). Still floored so it can't collide with the
+home-indicator area on any device.
+
+### Considered and rejected: native tabs / full redesign
+
+The request also asked about redesigning the tab bar or using "the Apple
+one." Looked into `expo-router/unstable-native-tabs` (Expo's native
+system-tab-bar wrapper) as an alternative — decided against migrating to
+it:
+- It's explicitly alpha status per Expo's own docs ("Native tabs is in
+  alpha... API is subject to change"), not something to build a real app
+  on.
+- It would mean losing the app's actual design — the floating rounded
+  pill bar, frosted blur, and raised circular Report button — since
+  native tabs render the platform's flat system tab bar with no support
+  for that kind of custom raised element.
+- The actual bug turned out to be a genuine, fixable code defect (prop
+  order), not a structural limitation of the custom `expo-router/ui`
+  approach — so a full redesign wasn't the right-sized fix for what was
+  actually wrong.
+
+### How this was verified
+
+Same sandbox constraints as before (no device/simulator, no working
+`npm install`). This time, rather than re-guessing from the screenshot
+alone, the fix was cross-checked against Expo's own current, official
+reference `TabButton` implementation (fetched directly from
+docs.expo.dev/router/advanced/custom-tabs) — which independently
+confirmed both the prop-ordering root cause and that `flexDirection:
+'column'` (not `'row'`) is the correct, intended layout. Re-ran the
+standalone `tsc --noEmit` pass and brace/paren balance check on both
+touched files; no errors beyond the same pre-existing missing-`node_modules`
+noise seen in every previous check.
+
+**This one genuinely needs on-device verification before trusting it
+further** — two attempts at this same bug from reasoning alone is a sign
+the remaining risk is in things that only show up at runtime (Slot
+merge behavior, exact `TabTrigger` prop shape) that couldn't be
+confirmed with certainty by reading source `.d.ts`-free in this sandbox.
+The fix now matches Expo's own shipped example verbatim, which is about
+as much confidence as static reading can provide — but the recommended
+next step is unchanged: `npm install` + `expo start` on a real device.

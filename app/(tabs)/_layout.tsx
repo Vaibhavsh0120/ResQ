@@ -48,11 +48,14 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { hideTabBar } = useNavVisibility();
   // Distance from the bottom of the screen to the bar's bottom edge.
-  // Previously `+ 6`, which sat the bar very close to the home-indicator
-  // area on devices with a small bottom inset (or right on top of the
-  // gesture bar on ones without) — lowered here per feedback that the bar
-  // should sit further down.
-  const bottomOffset = Math.max(insets.bottom, 10) - 4;
+  // Lowered twice now on feedback that the bar should sit further down —
+  // was `+ 6` originally, then `- 4`, now `- 8`. `Math.max(insets.bottom, 10)`
+  // still puts a floor under this so it can't collide with the
+  // home-indicator/gesture area even on a device with a very small bottom
+  // inset (the floor of 10 minus 8 still leaves 2px of clearance there;
+  // on any device with a real home-indicator inset — typically 34pt — this
+  // leaves ~26pt of clearance, comfortably above it).
+  const bottomOffset = Math.max(insets.bottom, 10) - 8;
 
   return (
     <Tabs>

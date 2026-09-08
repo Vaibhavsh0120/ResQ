@@ -25,7 +25,7 @@ export type TabButtonProps = TabTriggerSlotProps & {
   label: string;
 };
 
-export const TabButton = React.forwardRef<View, TabButtonProps>(({ icon: Icon, label, isFocused, onPress, ...rest }, ref) => {
+export const TabButton = React.forwardRef<View, TabButtonProps>(({ icon: Icon, label, isFocused, onPress, style: _incomingStyle, ...rest }, ref) => {
   const { colors } = useAppTheme();
   return (
     <Pressable
@@ -34,14 +34,24 @@ export const TabButton = React.forwardRef<View, TabButtonProps>(({ icon: Icon, l
         tabHaptic();
         onPress?.(e);
       }}
-      style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
       accessibilityLabel={label}
       accessibilityRole="button"
       accessibilityState={isFocused ? { selected: true } : {}}
       {...rest}
+      // `style` is applied AFTER `{...rest}`, matching Expo's own reference
+      // TabButton implementation (docs.expo.dev/router/advanced/custom-tabs)
+      // exactly — deliberately discarding whatever `style` TabTrigger's
+      // Slot forwards through `rest`, rather than trying to merge it.
+      // Previously `style` was spread BEFORE `{...rest}` here, so
+      // TabTrigger's own forwarded style silently overwrote this
+      // component's entire layout, including the `flexDirection: 'column'`
+      // meant to stack the icon above the label — that's what actually
+      // caused the icon and label to render side by side instead of
+      // stacked, no matter what was set in `styles.tab`.
+      style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
     >
       <View style={[styles.iconPill, isFocused && { backgroundColor: colors.brandSoft }]}>
-        <Icon size={20} color={isFocused ? colors.brand : colors.inkFaint} />
+        <Icon size={24} color={isFocused ? colors.brand : colors.inkFaint} />
       </View>
       <Text
         numberOfLines={1}
@@ -58,7 +68,7 @@ export const TabButton = React.forwardRef<View, TabButtonProps>(({ icon: Icon, l
 });
 TabButton.displayName = 'TabButton';
 
-export const ReportTabButton = React.forwardRef<View, TabTriggerSlotProps>(({ isFocused, onPress, ...rest }, ref) => {
+export const ReportTabButton = React.forwardRef<View, TabTriggerSlotProps>(({ isFocused, onPress, style: _incomingStyle, ...rest }, ref) => {
   const { colors } = useAppTheme();
   return (
     <Pressable
@@ -67,10 +77,13 @@ export const ReportTabButton = React.forwardRef<View, TabTriggerSlotProps>(({ is
         tabHaptic();
         onPress?.(e);
       }}
-      style={({ pressed }) => [styles.reportTab, pressed && styles.reportTabPressed]}
       accessibilityLabel="Report an incident"
       accessibilityRole="button"
       {...rest}
+      // See the identical comment in TabButton above — style is applied
+      // after `{...rest}` so it always wins, matching Expo's own reference
+      // TabButton pattern.
+      style={({ pressed }) => [styles.reportTab, pressed && styles.reportTabPressed]}
     >
       <View
         style={[
@@ -82,9 +95,9 @@ export const ReportTabButton = React.forwardRef<View, TabTriggerSlotProps>(({ is
           },
         ]}
       >
-        <AlertTriangle size={22} color={colors.onBrand} />
+        <AlertTriangle size={26} color={colors.onBrand} />
       </View>
-      <Text style={[styles.tabLabel, styles.reportLabel, { color: colors.inkFaint }]}>Report</Text>
+      <Text style={[styles.tabLabel, { color: colors.inkFaint }]}>Report</Text>
     </Pressable>
   );
 });
@@ -145,8 +158,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   iconPill: {
-    width: 40,
-    height: 28,
+    width: 44,
+    height: 32,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -157,7 +170,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 5,
+    // Matches the regular tabs' `gap: 3` from icon to label exactly — this
+    // was previously `gap: 5` plus an extra `marginTop: 1` on the label
+    // (6px total), which is why the Report label sat visibly further from
+    // its icon than every other tab's label despite looking like "the same
+    // gap" in the layout. Now identical.
+    gap: 3,
     // Raises this tab's own stacking order above its row siblings so the
     // popped-up circle (marginTop below) never renders underneath, and is
     // never obscured by, a neighboring tab's touch target.
@@ -168,9 +186,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   reportButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     borderWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -191,8 +209,5 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '700',
-  },
-  reportLabel: {
-    marginTop: 1,
   },
 });
