@@ -3,14 +3,6 @@ name: Build Mobile Release
 on:
   workflow_dispatch:
     inputs:
-      platform:
-        description: "What do you want to build?"
-        required: true
-        type: choice
-        options:
-          - apk
-          - ipa
-
       release_tag:
         description: "Release tag (example: v1.0.0)"
         required: true
@@ -27,7 +19,6 @@ permissions:
 jobs:
   build-android:
     name: Build Android APK
-    if: inputs.platform == 'apk'
     runs-on: ubuntu-latest
 
     steps:
@@ -39,12 +30,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: 17
+          cache: gradle
 
       - name: Install dependencies
         run: npm ci
@@ -65,19 +58,15 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              "release/ResQ-${{ inputs.release_tag }}.apk"
 
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${{ inputs.release_tag }}" \
-            release/ResQ-${{ inputs.release_tag }}.apk \
-            --title "${{ inputs.release_name }}" \
-            --notes "ResQ Android APK - ${{ inputs.release_tag }}" \
-            --clobber
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: release/ResQ-${{ inputs.release_tag }}.apk
+          if-no-files-found: error
 
   build-ios:
     name: Build iOS IPA
-    if: inputs.platform == 'ipa'
     runs-on: macos-26
 
     steps:
@@ -89,12 +78,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --no-install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
 
       - name: Install CocoaPods
         working-directory: ios
@@ -120,28 +118,55 @@ jobs:
 
       - name: Create unsigned IPA
         run: |
-          mkdir -p Payload
+          mkdir -p release Payload
           cp -R "$RUNNER_TEMP/ResQ.xcarchive/Products/Applications/ResQ.app" \
                 Payload/ResQ.app
 
           zip -r \
-            "ResQ-${{ inputs.release_tag }}.ipa" \
+            "release/ResQ-${{ inputs.release_tag }}.ipa" \
             Payload
 
-      - name: Create GitHub Release
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: release/ResQ-${{ inputs.release_tag }}.ipa
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs:
+      - build-android
+      - build-ios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Flatten artifacts
+        run: |
+          mv release/android-apk/*.apk release/
+          mv release/ios-ipa/*.ipa release/
+
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "${{ inputs.release_tag }}" >/dev/null 2>&1; then
             gh release upload "${{ inputs.release_tag }}" \
-              "ResQ-${{ inputs.release_tag }}.ipa" \
+              release/ResQ-${{ inputs.release_tag }}.apk \
+              release/ResQ-${{ inputs.release_tag }}.ipa \
               --clobber
             gh release edit "${{ inputs.release_tag }}" \
               --title "${{ inputs.release_name }}" \
-              --notes "ResQ iOS IPA - ${{ inputs.release_tag }}"
+              --notes "ResQ Android APK + iOS IPA - ${{ inputs.release_tag }}"
           else
             gh release create "${{ inputs.release_tag }}" \
-              "ResQ-${{ inputs.release_tag }}.ipa" \
+              release/ResQ-${{ inputs.release_tag }}.apk \
+              release/ResQ-${{ inputs.release_tag }}.ipa \
               --title "${{ inputs.release_name }}" \
-              --notes "ResQ iOS IPA - ${{ inputs.release_tag }}"
+              --notes "ResQ Android APK + iOS IPA - ${{ inputs.release_tag }}"
           fi
