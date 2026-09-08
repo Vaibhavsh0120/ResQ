@@ -45,7 +45,7 @@ jest.mock('expo-video', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), dismissAll: jest.fn() },
   useLocalSearchParams: () => mockParams.current,
   useFocusEffect: (cb: () => void | (() => void)) => {
     const React = require('react');

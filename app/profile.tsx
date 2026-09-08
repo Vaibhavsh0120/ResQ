@@ -9,25 +9,29 @@ import {
   LockKeyhole,
   LogIn,
   MapPin,
+  Moon,
+  MonitorSmartphone,
   Phone,
   ShieldCheck,
-  Sparkles,
+  Sun,
   Users,
 } from '@/components/icons';
-import { useAppTheme } from '@/theme/ThemeContext';
+import { useAppTheme, ThemeMode } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useHideTabBar } from '@/context/useHideTabBar';
+import { useAuth } from '@/context/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { ProfileData } from '@/types';
 import { mockProfile } from '@/data/mockProfile';
 
 export default function Profile() {
   useHideTabBar();
-  const { colors, isDark, setIsDark } = useAppTheme();
+  const { colors, mode, setMode } = useAppTheme();
+  const { logout } = useAuth();
   const { profile, loading, error, refresh, save, saving } = useProfile();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileData>(mockProfile);
@@ -116,13 +120,6 @@ export default function Profile() {
           />
           <SettingsRow icon={<Bell size={18} color={colors.foreground} />} title="Notifications" subtitle="Alerts and check-in reminders" trailing={<Toggle on />} onPress={() => router.push('/alert-preferences')} />
           <SettingsRow
-            icon={<Sparkles size={18} color={colors.foreground} />}
-            title={isDark ? 'Dark mode' : 'Light mode'}
-            subtitle="Neutral appearance for ResQ"
-            trailing={<Toggle on={isDark} />}
-            onPress={() => setIsDark(!isDark)}
-          />
-          <SettingsRow
             icon={<LockKeyhole size={18} color={colors.foreground} />}
             title="Privacy & security"
             subtitle="Your data, your control"
@@ -131,14 +128,28 @@ export default function Profile() {
           />
         </View>
 
+        <Text style={[styles.sectionLabel, { color: colors.inkMuted }]}>APPEARANCE</Text>
+        <ThemeModeSelector mode={mode} onChange={setMode} />
+
         <Pressable
-          onPress={() => router.replace('/login')}
+          onPress={async () => {
+            // Sets isLoggedIn to false. app/_layout.tsx wraps the tabs,
+            // profile, and every other authenticated screen in a
+            // <Stack.Protected guard={isLoggedIn}> — when that guard flips
+            // to false, expo-router removes those screens' history
+            // entries entirely (not just navigates away from them), so
+            // there's nothing left in the stack for a back-gesture to
+            // return to. No manual navigation call needed here; the root
+            // layout renders /login as soon as isLoggedIn updates.
+            await logout();
+          }}
           style={[styles.signOut, { backgroundColor: colors.dangerSoft }]}
         >
           <LogIn size={17} color={colors.danger} />
           <Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text>
         </Pressable>
       </Screen>
+
     </View>
   );
 }
@@ -229,6 +240,36 @@ function Toggle({ on }: { on: boolean }) {
   );
 }
 
+const THEME_MODE_OPTIONS: { mode: ThemeMode; label: string; icon: React.ComponentType<{ size?: number; color?: string }> }[] = [
+  { mode: 'light', label: 'Light', icon: Sun },
+  { mode: 'dark', label: 'Dark', icon: Moon },
+  { mode: 'system', label: 'System', icon: MonitorSmartphone },
+];
+
+function ThemeModeSelector({ mode, onChange }: { mode: ThemeMode; onChange: (mode: ThemeMode) => void }) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={[styles.themeSelector, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+      {THEME_MODE_OPTIONS.map(({ mode: optionMode, label, icon: Icon }) => {
+        const selected = mode === optionMode;
+        return (
+          <Pressable
+            key={optionMode}
+            onPress={() => onChange(optionMode)}
+            accessibilityRole="button"
+            accessibilityLabel={`${label} appearance`}
+            accessibilityState={{ selected }}
+            style={[styles.themeOption, selected && { backgroundColor: colors.brandSoft }]}
+          >
+            <Icon size={18} color={selected ? colors.brand : colors.inkMuted} />
+            <Text style={[styles.themeOptionLabel, { color: selected ? colors.brand : colors.inkMuted }]}>{label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   hero: { alignItems: 'center', paddingVertical: 20 },
@@ -270,6 +311,24 @@ const styles = StyleSheet.create({
   toggleTrack: { width: 30, height: 18, borderRadius: radius.pill, padding: 2, justifyContent: 'center' },
   toggleThumb: { width: 14, height: 14, borderRadius: 7, backgroundColor: 'white' },
   toggleThumbOn: { marginLeft: 12 },
+  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4, marginBottom: 8, marginTop: 4 },
+  themeSelector: {
+    flexDirection: 'row',
+    gap: 6,
+    padding: 5,
+    borderWidth: 1,
+    borderRadius: radius.md,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+  },
+  themeOptionLabel: { fontSize: 11, fontWeight: '700' },
   signOut: {
     flexDirection: 'row',
     alignItems: 'center',

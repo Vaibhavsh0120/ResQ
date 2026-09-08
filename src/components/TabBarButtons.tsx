@@ -134,6 +134,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 46,
     minWidth: 45,
+    // Explicit rather than relying on RN's column default — icon pill on
+    // top, label underneath.
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-start',
     gap: 3,
@@ -151,9 +154,14 @@ const styles = StyleSheet.create({
   reportTab: {
     flex: 1,
     minHeight: 46,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-start',
     gap: 5,
+    // Raises this tab's own stacking order above its row siblings so the
+    // popped-up circle (marginTop below) never renders underneath, and is
+    // never obscured by, a neighboring tab's touch target.
+    zIndex: 2,
   },
   reportTabPressed: {
     transform: [{ scale: 0.94 }],
@@ -166,7 +174,12 @@ const styles = StyleSheet.create({
     borderWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -26,
+    // Previously -26, which popped the circle far enough above the bar's
+    // top edge to overlap page content sitting just above the tab bar
+    // (cards, list rows) on shorter screens. -18 keeps the raised-button
+    // look while keeping the circle's top edge inside the bar's own
+    // padding, not spilling past it.
+    marginTop: -18,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 1,
     shadowRadius: 14,

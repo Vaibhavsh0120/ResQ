@@ -7,6 +7,16 @@ import { radius } from '@/theme/colors';
 import { IconButton } from './IconButton';
 import { Logo } from './Logo';
 
+// Height of the actual title/avatar/action row, excluding the safe-area
+// inset. The header's total height is this plus insets.top (see below) —
+// previously the header had a *fixed* `height: 60` while also adding
+// `paddingTop: insets.top + 10`, so on any device with a tall top inset
+// (notch / Dynamic Island, ~47-59pt) the padding alone could approach or
+// exceed the fixed height, squeezing or clipping the content row up
+// against/behind the status bar. Height is now derived from the same
+// insets.top value the padding uses, so it always has room.
+const HEADER_CONTENT_HEIGHT = 50;
+
 type Props = {
   title?: string;
   /** Show the profile avatar button on the left (used by every primary tab screen). */
@@ -23,7 +33,7 @@ export function Header({ title, showProfile = false, onProfilePress, onBack, act
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+    <View style={[styles.header, { height: insets.top + HEADER_CONTENT_HEIGHT }]}>
       {showProfile ? (
         <Pressable
           accessibilityLabel="Open profile"
@@ -63,11 +73,15 @@ export function Header({ title, showProfile = false, onProfilePress, onBack, act
 
 const styles = StyleSheet.create({
   header: {
-    height: 60,
     paddingHorizontal: 20,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
+    // Bottom padding gives the content row breathing room above the
+    // screen content below; top space is entirely the safe-area inset
+    // baked into `height` above, so content always sits below the notch/
+    // Dynamic Island regardless of device.
+    paddingBottom: 10,
   },
   avatarButton: {
     width: 36,

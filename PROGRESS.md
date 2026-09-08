@@ -634,3 +634,220 @@ before shipping.
   (`data: {...}\n\n` framing) instead, only the reader loop inside
   `streamChatReply` in `src/services/chatService.ts` needs to change — the
   event shape and the hook consuming it stay the same.
+
+## Session: UI bug fixes — header clipping, tab bar layout, theme modes, logout
+
+Four issues reported from real-device screenshots (iPhone), plus a question
+about Expo Go's loading screen. All were reproduced by reading the code
+against the screenshots (no device/simulator available in this sandbox —
+see "How this was verified" below), fixed, and reasoned through carefully
+since nothing here could be run end-to-end.
+
+### 1. Header clipped behind the status bar / notch
+
+`src/components/Header.tsx` had a **fixed** `height: 60` while also adding
+`paddingTop: insets.top + 10`. On any device with a tall top inset (notch
+or Dynamic Island, roughly 47-59pt), that padding alone could approach or
+exceed the fixed height, squeezing the avatar/logo/bell row up against —
+or behind — the status bar. This matches the reported screenshot exactly
+(home screen's header + "Good morning, Alex" greeting looked squeezed).
+
+Fixed: the header's height is now derived from the same `insets.top` value
+the padding uses (`insets.top + HEADER_CONTENT_HEIGHT`, a new constant),
+and the content row is bottom-aligned (`alignItems: 'flex-end'` +
+`paddingBottom: 10`) instead of vertically centered against a padded box.
+This means the content row always sits a fixed 10px above the bottom of
+the header regardless of how tall the safe-area inset is — it can't be
+squeezed by a fixed height again on any device.
+
+### 2. Tab bar: icon/label side-by-side instead of stacked, Report button overlap
+
+From the screenshot, the tab bar showed "Home" text next to the house icon
+instead of below it, and the raised circular Report button's shadow/circle
+visually overlapped neighboring tab labels and page content above the bar.
+
+`src/components/TabBarButtons.tsx`'s `.tab` style relied on React Native's
+column flex-direction default rather than setting it explicitly — added
+`flexDirection: 'column'` explicitly as a safeguard (belt-and-suspenders;
+no other cause for the row-like layout was found in the code itself, so if
+this recurs after this fix, it's worth checking whether a stale Metro
+bundle was running rather than the current source).
+
+The Report button's raised circle used `marginTop: -26` to pop it above
+the bar's top edge (a deliberate raised-FAB look) — with no `overflow:
+hidden` on the bar (correct, since that would also clip the iOS shadow),
+that popped-up circle was free to visually collide with whatever page
+content sat just above the tab bar. Reduced to `marginTop: -18` so the
+circle's overhang stays inside the bar's own top padding rather than
+spilling past it, and added `zIndex: 2` to `reportTab` so it always
+renders above its row siblings rather than depending on DOM order.
+
+### 3. Tab bar position
+
+Lowered the bar per explicit feedback: `bottomOffset` in
+`app/(tabs)/_layout.tsx` changed from `Math.max(insets.bottom, 10) + 6` to
+`Math.max(insets.bottom, 10) - 4`. Still clears the home-indicator/gesture
+area on every device (verified against typical inset values), just sits
+closer to the bottom edge than before.
+
+### 4. Theme: light/dark/system modes, light-by-default
+
+`src/theme/ThemeContext.tsx` previously only exposed a boolean `isDark` +
+`setIsDark`, defaulting to whatever `useColorScheme()` (the raw device
+setting) returned — so a phone set to dark mode made the whole app dark by
+default, with no in-app way to pick "always light" vs "always dark" vs
+"follow system" as three distinct choices.
+
+Rewrote it around a `ThemeMode = 'light' | 'dark' | 'system'`:
+- Defaults to `'light'` regardless of device scheme.
+- Only resolves to dark when the mode is explicitly `'dark'`, or `'system'`
+  while the device itself is in dark mode.
+- Persists the choice to AsyncStorage (`@resq_theme_mode`) so it survives
+  app restarts; still exposes `isDark` (now derived, not independently
+  settable) for the handful of call sites that only need a boolean
+  (status bar style, tab bar blur tint).
+- `app.json`'s `userInterfaceStyle` changed from `"automatic"` to
+  `"light"` so native chrome matches the same light-by-default choice
+  before any JS runs.
+- `app/index.tsx`'s startup video previously picked light/dark based on
+  raw `useColorScheme()` — switched to the app's own resolved `isDark`
+  from `useAppTheme()` so the splash video always matches what the app
+  actually opens into.
+
+`app/profile.tsx`'s single dark-mode toggle row was replaced with a
+3-option segmented control (Light / Dark / System, each with a Sun / Moon
+/ MonitorSmartphone icon from `lucide-react-native`, added to
+`src/components/icons.ts`). Lives under a new "APPEARANCE" section label,
+separate from the existing settings list.
+
+### 5. Logout only navigated, never actually logged out
+
+Root cause: `app/profile.tsx`'s sign-out button called
+`router.replace('/login')` directly and never called
+`AuthContext.logout()` at all — `isLoggedIn` stayed `true` in storage and
+in memory. Since expo-router's `Stack` still had `(tabs)` sitting in
+navigation history underneath the newly-replaced `/login` screen, a
+back-gesture (or, on a device with no visible back button, the plain
+home-indicator swipe-back gesture the user described) could pop right back
+into the authenticated app — because nothing had actually ended the
+session.
+
+Fixed properly rather than papering over it with a one-line `logout()`
+call plus a manual `router.replace`, because that alone doesn't guarantee
+the stack is clean (a `.replace` only swaps the *current* screen, it
+doesn't touch anything already pushed underneath it). Instead,
+`app/_layout.tsx` was restructured around expo-router's `Stack.Protected`
+(stable since SDK 53 — this project is on SDK 57, well within support):
+
+- Three `Stack.Protected` groups, matching the three real states in
+  `AuthContext` (`isLoggedIn`, `hasCompletedOnboarding`):
+  1. `guard={!isLoggedIn}` → `login`, `register`
+  2. `guard={isLoggedIn && !hasCompletedOnboarding}` → `onboarding`
+  3. `guard={isLoggedIn && hasCompletedOnboarding}` → `(tabs)`, `profile`,
+     `chat`, and every other authenticated screen
+- Per Expo's own docs: "When a screen's guard is changed from true to
+  false, all of its history entries will be removed from the navigation
+  history" — so the instant `logout()` flips `isLoggedIn` to `false`,
+  every authenticated screen (not just the current one) is dropped from
+  history, and the first screen of the newly-active group (`login`, listed
+  first in its group) becomes the landing screen. There is nothing left
+  in the stack for a back-gesture to return to — this is the actual fix,
+  not a manual redirect racing against navigation state.
+- `app/profile.tsx`'s sign-out handler is now just `await logout()` — no
+  navigation call needed, since the root layout re-renders with the
+  correct group the moment auth state changes.
+- Verified this restructure doesn't break the registration →
+  onboarding → tabs flow or the guest-access path (`loginAsGuest()` sets
+  both `isLoggedIn` and `hasCompletedOnboarding` to `true` immediately, so
+  guests still land straight in the tabs group, same as before) — traced
+  every `router.replace`/`router.push` call in `login.tsx`, `register.tsx`,
+  and each `onboarding/*.tsx` screen against the new guard conditions to
+  confirm each one lands in a group where the target screen actually
+  exists at the moment the call fires.
+- `RootStack` now also has a `useAuth()` `isLoading` guard (`return null`
+  while hydrating) so a logged-in user restarting the app never sees a
+  flash of the login screen before persisted state loads.
+
+`__tests__/smoke.test.tsx`'s `expo-router` mock got a `dismissAll:
+jest.fn()` added defensively while iterating on this (an earlier draft of
+the fix called `router.dismissAll()` manually before settling on
+`Stack.Protected` instead, which needs no such call) — harmless to leave
+in as insurance against a future regression back toward manual dismissal.
+
+### 6. "Green logo while loading in Expo" — not a fixable app bug
+
+Traced this all the way to pixel data before concluding it's not
+something `app.json` or app code controls. Every icon/splash asset in the
+repo was inspected directly (`PIL.Image.getpixel`, not just eyeballing
+thumbnails):
+- `assets/images/icon.png` — opaque white background, black mark. Correct.
+- `assets/images/icon-dark.png` — opaque near-black background, white
+  mark. Correct.
+- `assets/images/adaptive-icon.png` — transparent background, black mark
+  only (no teal or any other color anywhere in the file).
+No teal/green pixel exists in any shipped asset. The loading screen shown
+(a teal rounded-square icon card, "ResQ" label, "Loading NN.NN%" bar) is
+Expo Go's own native dev-client chrome while it bundles the JS — it is not
+part of this app's rendered output and isn't configurable from `app.json`
+or app code. This was explained to the user rather than "fixed" with a
+change that wouldn't actually do anything.
+
+### Cleanup
+
+Removed `src/components/BottomTabBar.tsx` — an orphaned file from the
+first (abandoned) attempt at the custom tab bar, documented earlier in
+this file's "Known structural gotcha" section. Confirmed zero imports
+referenced it anywhere before deleting.
+
+### How this was verified
+
+No device, simulator, or `node_modules` were available in this sandbox
+(`npm install` failed — no registry access; see below), so nothing here
+could be run end-to-end. Verification instead relied on:
+- Reading every touched file back in full after editing, checking prop
+  flow and control flow by hand against the reported screenshots.
+- A standalone `tsc --noEmit` pass (using the globally-installed
+  TypeScript, with a throwaway tsconfig pointing only at the touched
+  files) to catch real syntax/type errors independent of the missing
+  `node_modules` — every error it reported was a pre-existing "Cannot find
+  module" from the missing install (confirmed by checking the same errors
+  appear on untouched files like `PrimaryButton.tsx` too), not something
+  introduced by these changes.
+- Brace/paren balance checks on every edited file.
+- Tracing every `router.replace`/`router.push` call touching auth state
+  transitions against the new `Stack.Protected` guard conditions by hand,
+  screen by screen, rather than assuming the restructure was safe.
+- Cross-checking the `Stack.Protected` approach itself against Expo's
+  current docs (docs.expo.dev/router/advanced/protected, dated Feb 2026 —
+  after this app's SDK 57 release) rather than relying on training data,
+  since this is exactly the kind of framework-version-specific behavior
+  that goes stale.
+
+**Recommended next step for whoever picks this up**: install dependencies
+and actually run `expo start` on a real device/simulator to confirm all
+of the above visually, especially the tab bar overlap fix (its exact pixel
+overlap couldn't be reproduced/measured here, only reasoned about from the
+screenshot and the style values) and the `Stack.Protected` logout flow
+end-to-end (sign out, then try swiping back). The `npm install` failure in
+this session was `403 Forbidden` fetching `zod` from the npm registry —
+sandbox network restriction, not a real dependency problem; a normal
+machine should install cleanly per the dependency versions already fixed
+in an earlier session (see the `lucide-react-native`/`@types/react`
+section above).
+
+## Known gaps / suggested next steps (carried forward + updated)
+
+- **Auth is still a stub** — `login()`/`register()` accept anything and
+  always succeed; `Stack.Protected` now correctly gates navigation on
+  `isLoggedIn`/`hasCompletedOnboarding`, but the underlying credential
+  check itself is unchanged from before this session.
+- **Location isn't wired up yet** — unchanged from before this session,
+  see the entry above.
+- **Real app icons** — the current `icon.png`/`icon-dark.png` pair is
+  correct and opaque (verified this session), but still worth a final
+  design pass before store submission.
+- **No test suite run this session** — `__tests__/smoke.test.tsx` exists
+  and was updated (see above) but couldn't actually be executed here
+  (no `node_modules`). Run `npm test` on a real machine to confirm the
+  `Stack.Protected` refactor and theme changes don't break any of the
+  existing screen-mount assertions.

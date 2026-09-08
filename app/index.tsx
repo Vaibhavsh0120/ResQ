@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, useColorScheme, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/theme/ThemeContext';
 
 // Local startup animations — stored in assets/videos/
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -12,8 +13,14 @@ const darkVideo = require('../assets/videos/startup-dark.mp4');
 
 export default function StartupScreen() {
   const { isLoading, isLoggedIn, hasCompletedOnboarding } = useAuth();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  // Uses the app's own resolved theme (ThemeProvider — light by default,
+  // 'system' only if the user has explicitly chosen it) rather than the
+  // raw device color scheme, so the startup video always matches what the
+  // rest of the app will look like a moment later. Previously this read
+  // `useColorScheme()` directly, which meant a device set to dark mode
+  // saw the dark startup video even though the app itself defaults to,
+  // and would immediately land on, light mode.
+  const { isDark } = useAppTheme();
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const hasNavigated = useRef(false);

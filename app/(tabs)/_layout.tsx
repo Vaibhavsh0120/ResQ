@@ -47,7 +47,12 @@ export default function TabsLayout() {
   const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { hideTabBar } = useNavVisibility();
-  const bottomOffset = Math.max(insets.bottom, 10) + 6;
+  // Distance from the bottom of the screen to the bar's bottom edge.
+  // Previously `+ 6`, which sat the bar very close to the home-indicator
+  // area on devices with a small bottom inset (or right on top of the
+  // gesture bar on ones without) — lowered here per feedback that the bar
+  // should sit further down.
+  const bottomOffset = Math.max(insets.bottom, 10) - 4;
 
   return (
     <Tabs>

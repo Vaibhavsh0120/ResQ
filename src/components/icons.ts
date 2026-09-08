@@ -45,6 +45,9 @@ import {
   WifiOff,
   RefreshCw,
   CircleAlert as AlertCircle,
+  Sun,
+  Moon,
+  MonitorSmartphone,
 } from 'lucide-react-native';
 
 export {
@@ -78,6 +81,9 @@ export {
   X,
   ArrowLeft,
   CircleHelp,
+  Sun,
+  Moon,
+  MonitorSmartphone,
   FileText,
   Heart,
   LifeBuoy,
