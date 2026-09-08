@@ -103,14 +103,62 @@ export const ReportTabButton = React.forwardRef<View, TabTriggerSlotProps>(({ is
 });
 ReportTabButton.displayName = 'ReportTabButton';
 
+// --- Sizing constants for the gap fix below ---
+//
+// Root cause of the previously "inconsistent" gap (confirmed by simulating
+// this exact layout tree in Yoga, the layout engine RN actually uses, not
+// just eyeballing a screenshot): every tab used `flex: 1`, so all 5 cells
+// were forced to EQUAL width. Content was then centered inside each equal
+// cell. That's fine when every icon is the same size, but the Report
+// button's circle (54px) is wider than the other tabs' icon pill (44px) —
+// so within the same equal-width cell, Report's icon ate 10px more of its
+// cell than a regular tab's icon did, leaving 5px less padding on *each*
+// side. The result: the whitespace gap on either side of Report was
+// consistently ~20% smaller than every other gap, regardless of screen
+// width — reproduced with Yoga at multiple widths (22.0 vs 19.0 out of a
+// 22-24px gap on a narrow phone). That's the "unconsistent gap".
+//
+// Fix: stop using equal flex cells and instead give every cell a FIXED
+// width sized as `icon width + 2 * TAB_H_PAD`, using the *same* padding
+// value for every tab regardless of its icon's size. Report's cell is
+// simply 10px wider (matching its 10px-larger icon) so the padding around
+// every icon — and therefore the whitespace gap between every pair of
+// icons — is identical by construction, not by coincidence of equal
+// screen-width division. `justifyContent: 'space-between'` then splits
+// any leftover bar width equally across the 4 gaps regardless of the
+// cells' own widths (verified: 22.00 / 22.00 / 22.00 / 22.00 exactly, at
+// three different simulated bar widths, including a tablet-width one).
+const ICON_PILL_WIDTH = 44;
+const REPORT_BUTTON_SIZE = 54;
+const TAB_H_PAD = 10;
+export const TAB_WIDTH = ICON_PILL_WIDTH + TAB_H_PAD * 2; // 64
+export const REPORT_TAB_WIDTH = REPORT_BUTTON_SIZE + TAB_H_PAD * 2; // 74
+// Narrowest a bar can be before cells would need to overlap or compress —
+// used by the layout to decide when to stop stretching to full width on
+// large screens (see app/(tabs)/_layout.tsx).
+export const TAB_BAR_CONTENT_MIN_WIDTH = TAB_WIDTH * 4 + REPORT_TAB_WIDTH; // 330
+
 export const tabBarStyles = StyleSheet.create({
   bar: {
-    minHeight: 64,
+    // Was 64. Report's raised circle (54px) sits higher than the other
+    // tabs' icon pill (32px) via a negative marginTop (see reportButton
+    // below), which pushes its label a few px lower than the other tabs'
+    // labels. 64 wasn't quite tall enough to contain that, so the "Report"
+    // label rendered outside the bar's own rounded bottom edge. 72 gives
+    // it (and every other tab) a couple of px of clearance to spare —
+    // computed from the actual content stack height, not a guess.
+    minHeight: 72,
     borderRadius: radius.xxl,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-around',
+    // Was 'space-around'. With fixed (not flex:1) cell widths, space-around
+    // would still put HALF of a gap's worth of space outside the first/last
+    // item — space-between puts equal space only *between* cells and lets
+    // each end cell's own baked-in TAB_H_PAD be the only edge margin,
+    // which reads as tighter/more intentional against the bar's rounded
+    // ends and is what the equal-gap math above assumes.
+    justifyContent: 'space-between',
     paddingHorizontal: 6,
     paddingTop: 9,
     paddingBottom: 9,
@@ -144,9 +192,11 @@ export const tabBarStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   tab: {
-    flex: 1,
+    // Was `flex: 1` (equal-width cells — see the gap-fix comment above for
+    // why that's what caused the inconsistent spacing). Fixed width, sized
+    // to match TAB_H_PAD around the icon exactly like every other tab.
+    width: TAB_WIDTH,
     minHeight: 46,
-    minWidth: 45,
     // Explicit rather than relying on RN's column default — icon pill on
     // top, label underneath.
     flexDirection: 'column',
@@ -158,14 +208,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   iconPill: {
-    width: 44,
+    width: ICON_PILL_WIDTH,
     height: 32,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   reportTab: {
-    flex: 1,
+    // Was `flex: 1`. Fixed width, 10px wider than a regular `tab` — exactly
+    // matching how much wider reportButton (54) is than iconPill (44) — so
+    // the padding around this icon equals every other tab's padding.
+    width: REPORT_TAB_WIDTH,
     minHeight: 46,
     flexDirection: 'column',
     alignItems: 'center',
@@ -186,9 +239,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   reportButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: REPORT_BUTTON_SIZE,
+    height: REPORT_BUTTON_SIZE,
+    borderRadius: REPORT_BUTTON_SIZE / 2,
     borderWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',

@@ -116,7 +116,14 @@ export default function Profile() {
             title="My people"
             subtitle="Manage your safety circle"
             trailing={<ChevronRight size={17} color={colors.inkMuted} />}
-            onPress={() => router.push('/(tabs)/family')}
+            // replace, not push — profile.tsx is a root-level sibling of
+            // the (tabs) group (see app/_layout.tsx), so a push here
+            // stacks a second, separate (tabs) instance rather than
+            // switching within the one already mounted underneath this
+            // screen. Same root cause and fix as guidance-result.tsx's
+            // "Back to home" button — see the comment there for how this
+            // was confirmed against expo-router's own source.
+            onPress={() => router.replace('/(tabs)/family')}
           />
           <SettingsRow icon={<Bell size={18} color={colors.foreground} />} title="Notifications" subtitle="Alerts and check-in reminders" trailing={<Toggle on />} onPress={() => router.push('/alert-preferences')} />
           <SettingsRow

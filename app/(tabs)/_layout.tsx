@@ -1,12 +1,21 @@
 import React from 'react';
 import { Tabs, TabList, TabSlot, TabTrigger } from 'expo-router/ui';
-import { Platform, View, ViewStyle } from 'react-native';
+import { Platform, useWindowDimensions, View, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { useNavVisibility } from '@/context/NavVisibilityContext';
 import { Activity, HomeIcon, MapPin, Users } from '@/components/icons';
 import { ReportTabButton, TabButton, tabBarStyles } from '@/components/TabBarButtons';
+
+// Same tablet/desktop content cap the rest of the app already uses
+// (app/login.tsx, app/register.tsx, src/components/OnboardingLayout.tsx all
+// center a maxWidth: 480/520 column on wide screens). Without this, the
+// gap-fix above — which makes every gap between tabs mathematically equal —
+// would still stretch those equal gaps to fill the *entire* width of an
+// iPad or Mac window, e.g. ~110px between icons on a 700px-wide bar.
+// Equal-but-huge isn't the goal; equal-and-reasonably-sized is.
+const TAB_BAR_MAX_WIDTH = 480;
 
 // expo-router/ui's headless tabs (Expo's current recommended way to build a
 // fully custom tab bar, SDK 56+ — expo-router no longer supports importing
@@ -47,6 +56,7 @@ export default function TabsLayout() {
   const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { hideTabBar } = useNavVisibility();
+  const { width: windowWidth } = useWindowDimensions();
   // Distance from the bottom of the screen to the bar's bottom edge.
   // Lowered twice now on feedback that the bar should sit further down —
   // was `+ 6` originally, then `- 4`, now `- 8`. `Math.max(insets.bottom, 10)`
@@ -56,6 +66,14 @@ export default function TabsLayout() {
   // on any device with a real home-indicator inset — typically 34pt — this
   // leaves ~26pt of clearance, comfortably above it).
   const bottomOffset = Math.max(insets.bottom, 10) - 8;
+  // On a phone this resolves to the original fixed 14 on both sides
+  // (windowWidth - 28 <= 480 for every real phone, so
+  // Math.min(...) always picks windowWidth - 28). On an iPad or Mac window
+  // it caps the bar at TAB_BAR_MAX_WIDTH and centers it, same treatment
+  // login/register/onboarding already use, so tab gaps stay a sensible
+  // fixed size instead of stretching edge-to-edge on a 1000px-wide window.
+  const barWidth = Math.min(windowWidth - 28, TAB_BAR_MAX_WIDTH);
+  const barHorizontalInset = (windowWidth - barWidth) / 2;
 
   return (
     <Tabs>
@@ -66,8 +84,8 @@ export default function TabsLayout() {
           Platform.select<ViewStyle>({ ios: tabBarStyles.barShadowIOS, android: tabBarStyles.barShadowAndroid }) ?? {},
           {
             position: 'absolute',
-            left: 14,
-            right: 14,
+            left: barHorizontalInset,
+            right: barHorizontalInset,
             bottom: bottomOffset,
             borderColor: colors.line,
             shadowColor: colors.shadow,

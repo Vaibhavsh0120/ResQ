@@ -107,7 +107,19 @@ export default function GuidanceResult() {
               </Text>
             </View>
 
-            <PrimaryButton title="Back to home" onPress={() => router.push('/(tabs)')} variant="outline" />
+            {/* replace, not push: this screen is a root-level sibling of the
+                (tabs) group (see app/_layout.tsx), not a screen inside it.
+                Confirmed by reading expo-router's own source
+                (getNavigationAction.js): push is only auto-converted to a
+                same-instance tab-focus when the *divergent* navigator
+                between the current and target route is the tabs group
+                itself. From here the divergent navigator is the root
+                stack, so push would genuinely stack a second, separate
+                (tabs) instance on top of whichever one is already open
+                underneath this screen — back would then have to be
+                pressed twice to actually leave. replace swaps this screen
+                for a fresh (tabs) mount at the same stack position instead. */}
+            <PrimaryButton title="Back to home" onPress={() => router.replace('/(tabs)')} variant="outline" />
           </>
         )}
       </Screen>

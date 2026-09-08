@@ -1,5 +1,170 @@
 # PROGRESS
 
+## Session (Tab bar gap fix + navigation stack/replace audit) — COMPLETE
+
+Picked up two asks: a screenshot showing inconsistent horizontal gaps
+between the bottom tab bar's icons, and a request to review the whole
+app's navigation and decide, deliberately, which transitions should
+`push` (stack, back-navigable) vs `replace` (swap, no history) — "including
+the auth pages and all."
+
+### 1. Tab bar gap fix
+
+**Root cause, confirmed by simulation, not eyeballing.** Every tab
+(`src/components/TabBarButtons.tsx`) used `flex: 1`, so all 5 cells were
+forced to equal width, with content centered inside each. That's fine when
+every icon is the same size — but the Report button's circle (54px) is
+wider than the other tabs' icon pill (44px), so within an equal-width
+cell it ate 10px more than a regular tab's icon did, leaving 5px less
+padding on *each* side. Installed `yoga-layout` (the actual layout engine
+React Native uses) in a scratch sandbox and built the exact layout tree
+from this file's own style values to check this rather than guess from
+the screenshot: confirmed the gap on either side of Report comes out
+~20% smaller than every other gap, consistently, regardless of simulated
+bar width. That's the reported "unconsistent gap."
+
+**Fix**: stopped using equal `flex: 1` cells. Every tab now gets a fixed
+width — `icon width + 2 × 10px` — using the same 10px padding constant
+for every tab regardless of its own icon's size, so Report's cell is
+simply 10px wider (matching its 10px-larger icon) rather than fighting
+for an equal share. `tabBarStyles.bar`'s `justifyContent` changed from
+`space-around` to `space-between`, which — verified with the same Yoga
+simulation at three different bar widths, including a tablet width —
+splits any leftover width equally across the 4 gaps regardless of the
+cells' own widths either side of a gap. Result: gaps come out
+mathematically identical (22.00/22.00/22.00/22.00 on one simulated
+width, 35.00 across the board on another) rather than approximately
+close.
+
+**Also fixed while in this file** (same screenshot, same component):
+Report's label was rendering outside the bar's own rounded bottom edge —
+its raised circle (54px tall, `marginTop: -18` to pop it above the bar)
+pushes the label a few px lower than the other tabs' 32px-tall icon pill
+does, and the bar's `minHeight: 64` wasn't tall enough to contain that.
+Bumped to `72` (computed from the actual content stack height, not a
+round-number guess) so every label — Report's included — sits fully
+inside the bar.
+
+**Also added**: a `TAB_BAR_MAX_WIDTH = 480` cap in `app/(tabs)/_layout.tsx`,
+computed via `useWindowDimensions` and applied as a dynamic `left`/`right`
+inset (TabList can't be wrapped in a positioning `View` — see the
+structural comment already in that file — so the cap has to be computed
+inline rather than via a wrapper). Without this, the newly-exact-equal
+gaps would still stretch to fill an iPad or Mac window's full width
+(~110px between icons on a simulated 700px-wide bar) — equal but
+absurd isn't the goal. On any real phone this resolves to the original
+fixed 14pt inset with no visual change; it only kicks in above ~508pt of
+width. Matches the `maxWidth: 480/520` centering convention
+`login.tsx`/`register.tsx`/`OnboardingLayout.tsx` already use.
+
+### 2. Navigation push/replace audit ("including the auth pages and all")
+
+Read every `router.push`/`router.replace`/`router.back()` call in the
+app (30+ call sites) and checked each against expo-router's *actual
+source* (pulled `expo-router@57.0.19` — the exact version this project
+pins — from the npm registry into a scratch sandbox and read
+`global-state/getNavigationAction.js`, `ui/TabRouter.js`, `ui/TabTrigger.js`)
+rather than assuming behavior, because this app's custom headless tab
+bar makes "does push duplicate something" a genuinely non-obvious
+question here.
+
+**What's already correct, and why** (confirmed from source, not just
+"looks fine"):
+- **Splash → login/onboarding/tabs** (`app/index.tsx`): all `replace`.
+  Correct — splash should never be swipe-back-able to.
+- **Login ⇄ Register**: `login.tsx`'s "Sign up" is `push` (so back
+  returns to login — standard peer-auth-screen UX); `register.tsx`'s
+  "back to login" is `router.back()`, safe because register is only ever
+  reached by that one push, never a direct entry point.
+- **Login/Register/Guest → tabs, Onboarding → tabs**: all `replace`.
+  Redundant-but-harmless on top of `Stack.Protected`'s own
+  guard-flip history-clearing (documented in an earlier session below),
+  not a bug.
+- **Onboarding step 1→2→3→4→5**: all `push`, including the "Skip for
+  now" buttons (skip just advances without saving that step's fields —
+  still `push`, so back can still return to a skipped step). Correct
+  wizard-flow semantics.
+- **Every drill-down detail screen** (`update-detail`, `family-member`,
+  `place-detail`, `readiness`, `alert-preferences`, `privacy-security`,
+  `guidance-result`, `chat`, `profile`): reached by `push` from a list
+  screen, backed out via `router.back()`. Standard, correct, and
+  consistent everywhere.
+- **Switching tabs via a card/button inside a tab screen**
+  (`app/(tabs)/index.tsx`'s quick-action cards doing
+  `router.push('/(tabs)/updates')` etc., and `report.tsx`'s in-tab
+  navigation): confirmed via `getNavigationAction.js` that expo-router
+  auto-converts a `PUSH` into effectively a same-instance tab focus
+  switch whenever the *divergent navigator* between the current and
+  target route is the tabs group itself (`navigationState.type !==
+  'stack'` triggers `PUSH` → `NAVIGATE`, and `ExpoTabRouter`'s own
+  `getStateForAction` in `ui/TabRouter.js` delegates any non-`JUMP_TO`
+  action straight to React Navigation's stock `TabRouter`, which focuses
+  an existing route rather than duplicating it). So this pattern is safe
+  as written — no duplicate tab-bar instances, no change needed.
+
+**What was actually broken, and fixed**:
+- `app/guidance-result.tsx`'s "Back to home" button and
+  `app/profile.tsx`'s "My people" row both did `router.push('/(tabs)...')`
+  from a screen that is a **root-level sibling** of `(tabs)` (per
+  `app/_layout.tsx`'s `Stack.Protected` groups), not a screen *inside*
+  it. From there, the divergent navigator is the **root stack**, not the
+  tabs group — so the auto-conversion above does *not* apply, and `push`
+  genuinely stacks a second, separate `(tabs)` instance on top of
+  whichever one is already mounted underneath. Traced a concrete
+  repro: Home tab → Report tab (in-tab, no stack entry) → push
+  `guidance-result` → push `/(tabs)` from its "Back to home" button
+  yields `[(tabs)-Report, guidance-result, (tabs)-Home]` — two separate
+  mounted tabs instances in history, meaning back from the new Home would
+  land on `guidance-result` again instead of leaving the flow, and a
+  second back would be needed to reach the original tabs instance.
+  **Fixed**: both changed to `router.replace(...)`. A fresh `(tabs)`
+  mount via `replace` still correctly lands on the intended tab (Home for
+  guidance-result's case, Family for profile's "My people") because
+  React Navigation initializes a newly-created nested navigator's focus
+  from the target path's nested params — same mechanism that makes deep
+  links land on the right tab. `replace` swaps the *current* screen for
+  that fresh mount instead of stacking a third entry on top, which
+  removes the double-back-press problem. (Deliberately did not reach for
+  `router.dismissTo`, which would be the theoretically tidier fix — it
+  pops back to an already-mounted matching instance instead of creating
+  a fresh one — because I couldn't verify from source, without a live
+  device, whether `dismissTo`'s `POP_TO` action reliably re-focuses the
+  *nested* tab on an existing instance versus just reusing whatever tab
+  it already had focused. `replace` has no such ambiguity: it's a fresh
+  mount, so it deterministically initializes to the target tab.)
+- Confirmed via `grep` that these were the *only* two occurrences of this
+  pattern (`push` targeting `/(tabs)...` from a file outside
+  `app/(tabs)/`) anywhere in the app.
+
+### Verify
+
+No `node_modules` in this sandbox (same standing constraint as every
+prior session below — no registry access from the actual build tooling,
+only from a scratch npm sandbox used to pull `yoga-layout` and
+`expo-router` for read-only inspection). Verified instead with:
+- A standalone `tsc --noEmit` pass (global `tsc`, throwaway `tsconfig`
+  pointing only at the 4 touched files) — zero errors beyond the same
+  "Cannot find module 'react'/etc." noise every untouched file in this
+  project also produces without a real install; no new error class
+  introduced.
+- Brace/paren/bracket balance check on all 4 touched files — clean.
+- The Yoga gap-math and the expo-router push-semantics claims above were
+  each verified by actually running simulated layouts / reading the
+  exact pinned package version's source, not asserted from memory.
+
+### Known gaps (unchanged, carried forward)
+
+Everything in "Known gaps / suggested next steps" further down this file
+is still accurate and untouched this session — auth is still a stub,
+location still isn't wired to `safe.tsx`, no test suite was run here
+(couldn't be, same missing-`node_modules` constraint). The main
+recommended next step specific to *this* session: run `expo start` on a
+real device and exercise the guidance-result → back-to-home and
+profile → My People flows once, to confirm the `replace` fix lands on
+the intended tab in practice, not just in source-level reasoning.
+
+---
+
 ## Session (Icon backgrounds fixed, video asset cleanup) — COMPLETE
 
 Picked up two user-reported issues: a crash log showing `app/index.tsx`
