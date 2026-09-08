@@ -155,16 +155,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${{ inputs.release_tag }}" >/dev/null 2>&1; then
+          if gh release view "${{ inputs.release_tag }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "${{ inputs.release_tag }}" \
+              --repo "${{ github.repository }}" \
               release/ResQ-${{ inputs.release_tag }}.apk \
               release/ResQ-${{ inputs.release_tag }}.ipa \
               --clobber
             gh release edit "${{ inputs.release_tag }}" \
+              --repo "${{ github.repository }}" \
               --title "${{ inputs.release_name }}" \
               --notes "ResQ Android APK + iOS IPA - ${{ inputs.release_tag }}"
           else
             gh release create "${{ inputs.release_tag }}" \
+              --repo "${{ github.repository }}" \
               release/ResQ-${{ inputs.release_tag }}.apk \
               release/ResQ-${{ inputs.release_tag }}.ipa \
               --title "${{ inputs.release_name }}" \
