@@ -78,7 +78,7 @@ jobs:
   build-ios:
     name: Build iOS IPA
     if: inputs.platform == 'ipa'
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - name: Checkout repository
