@@ -34,7 +34,18 @@ export default function Login() {
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const onLogin = async () => {
-    await login({ name: 'Alex Chen', email: email || 'alex@example.com' });
+    // No backend yet to look up a real name from this email (see
+    // PROGRESS.md — auth is a stub). Deriving a placeholder from the
+    // email itself, rather than hardcoding a fictional "Alex Chen", so a
+    // real returning user doesn't see someone else's name across the app.
+    const trimmedEmail = email.trim() || 'you@example.com';
+    const localPart = trimmedEmail.split('@')[0];
+    const placeholderName = localPart
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((part) => part[0].toUpperCase() + part.slice(1))
+      .join(' ');
+    await login({ name: placeholderName || 'ResQ user', email: trimmedEmail });
     router.replace('/(tabs)');
   };
 
@@ -109,7 +120,7 @@ export default function Login() {
             <View>
               <View style={styles.labelRow}>
                 <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-                <Pressable hitSlop={8}>
+                <Pressable hitSlop={8} onPress={() => router.push('/forgot-password' as any)}>
                   <Text style={[styles.forgotText, { color: colors.brand }]}>Forgot?</Text>
                 </Pressable>
               </View>
@@ -149,27 +160,6 @@ export default function Login() {
             >
               <Text style={[styles.primaryButtonText, { color: colors.onBrand }]}>Sign in</Text>
               <ChevronRight size={18} color={colors.onBrand} />
-            </Pressable>
-
-            {/* Divider */}
-            <View style={styles.orDivider}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.line }]} />
-              <Text style={[styles.orText, { color: colors.inkFaint }]}>or</Text>
-              <View style={[styles.dividerLine, { backgroundColor: colors.line }]} />
-            </View>
-
-            {/* Google button */}
-            <Pressable
-              onPress={onLogin}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                { borderColor: colors.line, backgroundColor: colors.surface },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>
-                Continue with Google
-              </Text>
             </Pressable>
 
             {/* Register link */}
@@ -322,32 +312,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-  },
-  secondaryButton: {
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Divider
-  orDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  orText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 
   // Switch row

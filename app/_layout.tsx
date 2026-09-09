@@ -62,6 +62,7 @@ function RootStack() {
         <Stack.Protected guard={!isLoggedIn}>
           <Stack.Screen name="login" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="register" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_right' }} />
         </Stack.Protected>
 
         {/* State 2: logged in, but hasn't finished the setup flow yet. */}
@@ -82,6 +83,7 @@ function RootStack() {
           <Stack.Screen name="update-detail" />
           <Stack.Screen name="alert-preferences" />
           <Stack.Screen name="privacy-security" />
+          <Stack.Screen name="notifications" />
         </Stack.Protected>
       </Stack>
     </>

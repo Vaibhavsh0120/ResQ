@@ -10,6 +10,7 @@ import { Eyebrow } from '@/components/Eyebrow';
 import { IconButton } from '@/components/IconButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useUpdates } from '@/hooks/useUpdates';
+import { useCurrentArea } from '@/hooks/useCurrentArea';
 import { UpdateTone } from '@/types';
 
 const ICONS = { CloudRain, Home: HomeIcon, CarFront };
@@ -17,6 +18,7 @@ const ICONS = { CloudRain, Home: HomeIcon, CarFront };
 export default function Updates() {
   const { colors } = useAppTheme();
   const { data: updates, loading, error, refresh } = useUpdates();
+  const { area } = useCurrentArea();
   const [justRefreshed, setJustRefreshed] = useState(false);
 
   const onRefresh = () => {
@@ -46,7 +48,7 @@ export default function Updates() {
           <Eyebrow>STAY IN THE KNOW</Eyebrow>
           <Text style={[styles.h1, { color: colors.foreground }]}>What&apos;s happening nearby.</Text>
           <Text style={[styles.introSub, { color: colors.inkMuted }]}>
-            Trusted updates and community signals for Riverside district.
+            Trusted updates and community signals for {area ?? 'your area'}.
           </Text>
         </View>
 
@@ -55,7 +57,7 @@ export default function Updates() {
           <Text style={[styles.statusText, { color: colors.brand }]}>
             {justRefreshed ? 'Just refreshed' : 'Live coverage active'}
           </Text>
-          <Text style={[styles.statusSub, { color: colors.inkMuted }]}>Riverside district</Text>
+          <Text style={[styles.statusSub, { color: colors.inkMuted }]}>{area ?? 'Your area'}</Text>
         </View>
 
         {loading && <LoadingState label="Fetching the latest updates..." />}

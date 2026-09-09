@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Check, ChevronRight, HomeIcon, MapPin, Navigation } from '@/components/icons';
@@ -10,6 +10,7 @@ import { Eyebrow } from '@/components/Eyebrow';
 import { IconButton } from '@/components/IconButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useSafePlaces } from '@/hooks/useSafePlaces';
+import { useCurrentArea } from '@/hooks/useCurrentArea';
 
 // Note: Safe places is a primary tab destination (like Home/Updates/Family),
 // so its header shows the profile icon rather than a back arrow — matching
@@ -17,9 +18,25 @@ import { useSafePlaces } from '@/hooks/useSafePlaces';
 export default function Safe() {
   const { colors } = useAppTheme();
   const { data: places, loading, error, refresh } = useSafePlaces();
-  const [district, setDistrict] = useState('Riverside district');
+  const { area } = useCurrentArea();
+  // Seeded from the user's profile area (single source of truth — see
+  // PROGRESS.md Phase 0), but kept as local state so a search here can be
+  // overridden per-session without touching the saved profile.
+  const [district, setDistrict] = useState(area ?? 'Your area');
+  const [districtSeeded, setDistrictSeeded] = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
   const [draftDistrict, setDraftDistrict] = useState(district);
+
+  // Profile loads async, so pick up the real area once it arrives — but
+  // only before the user has actually edited the field themselves.
+  useEffect(() => {
+    if (area && !districtSeeded) {
+      setDistrict(area);
+      setDraftDistrict(area);
+      setDistrictSeeded(true);
+    }
+  }, [area, districtSeeded]);
+
   // The map card below is a stylized static illustration, not a real
   // MapView (no map SDK wired in yet — see PROGRESS.md). "Map view"
   // highlights it instead of pretending to switch to a live map.
@@ -32,6 +49,7 @@ export default function Safe() {
 
   const saveLocation = () => {
     if (draftDistrict.trim()) setDistrict(draftDistrict.trim());
+    setDistrictSeeded(true); // user has now taken over this field; stop auto-syncing from profile
     setEditingLocation(false);
   };
 

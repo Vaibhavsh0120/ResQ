@@ -23,9 +23,9 @@ export function useFamily() {
   );
 
   const invite = useCallback(
-    async (name: string, relation: string) => {
+    async (name: string, relation: string, phone?: string) => {
       try {
-        const created = await inviteFamilyMember(name, relation);
+        const created = await inviteFamilyMember(name, relation, phone);
         setMembers((current) => [...(current ?? data ?? []), created]);
         return created;
       } catch (err) {

@@ -15,6 +15,8 @@ export type FamilyMember = {
   status: string;
   tone: FamilyStatusTone;
   lastUpdatedAt?: string; // ISO timestamp, set by a real backend
+  phone?: string; // enables Call/Message from family-member.tsx
+  lastKnownLocation?: string; // free-text for now; becomes lat/long once a backend can receive live updates
 };
 
 // ---- Profile ------------------------------------------------------------
@@ -37,6 +39,7 @@ export type SafePlace = {
   latitude?: number;
   longitude?: number;
   distanceMiles?: number;
+  phone?: string; // enables "Call ahead" from place-detail.tsx
 };
 
 // ---- Live updates -----------------------------------------------------------
@@ -124,9 +127,32 @@ export type ChatThreadSummary = {
   updatedAt: string;
 };
 
+/** A previous thread's full message list, keyed by ChatThreadSummary.id. Mock-only until chat history has a real backend. */
+export type ChatThread = ChatThreadSummary & {
+  messages: ChatMessage[];
+};
+
 /** One chunk of a streamed chat response, as a real RAG backend would emit over SSE/WebSocket. */
 export type ChatStreamEvent =
   | { type: 'token'; text: string }
   | { type: 'sources'; sources: RagSource[] }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+// ---- Notifications ---------------------------------------------------------
+
+export type NotificationKind = 'alert' | 'family' | 'readiness' | 'system';
+
+/**
+ * A single item behind the Header bell. Local-only today (no push server —
+ * see PROGRESS.md Phase 1); read state is persisted on-device so it survives
+ * app restarts even before a backend exists.
+ */
+export type NotificationItem = {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  createdAt: string; // ISO timestamp
+  read: boolean;
+};

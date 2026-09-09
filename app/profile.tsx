@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -25,16 +26,31 @@ import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useHideTabBar } from '@/context/useHideTabBar';
 import { useAuth } from '@/context/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useFamily } from '@/hooks/useFamily';
+import { useReadiness } from '@/hooks/useReadiness';
 import { ProfileData } from '@/types';
 import { mockProfile } from '@/data/mockProfile';
+import { initialsFromName } from '@/utils/format';
+import { getGuidesReadCount } from '@/services/guidesReadService';
 
 export default function Profile() {
   useHideTabBar();
   const { colors, mode, setMode } = useAppTheme();
-  const { logout } = useAuth();
+  const { isGuest, logout } = useAuth();
   const { profile, loading, error, refresh, save, saving } = useProfile();
+  const { members } = useFamily();
+  const { data: readiness } = useReadiness();
+  const [guidesRead, setGuidesRead] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileData>(mockProfile);
+
+  // Re-read on every focus (not just mount) so returning from
+  // guidance-result.tsx after reading a guide reflects the new count.
+  useFocusEffect(
+    React.useCallback(() => {
+      getGuidesReadCount().then(setGuidesRead);
+    }, [])
+  );
 
   useEffect(() => {
     if (profile) setDraft(profile);
@@ -57,7 +73,7 @@ export default function Profile() {
 
         <View style={styles.hero}>
           <View style={[styles.avatar, { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand }]}>
-            <Text style={[styles.avatarText, { color: colors.onBrand }]}>AC</Text>
+            <Text style={[styles.avatarText, { color: colors.onBrand }]}>{isGuest ? 'G' : initialsFromName(displayed.name)}</Text>
           </View>
           <Text style={[styles.heroName, { color: colors.foreground }]}>{displayed.name}</Text>
           <Text style={[styles.heroEmail, { color: colors.inkMuted }]}>{displayed.email}</Text>
@@ -105,9 +121,9 @@ export default function Profile() {
         )}
 
         <View style={styles.statsRow}>
-          <StatCard value="82%" label="Readiness" />
-          <StatCard value="3" label="People" />
-          <StatCard value="4" label="Guides read" />
+          <StatCard value={readiness ? `${readiness.score}%` : '--'} label="Readiness" />
+          <StatCard value={members ? String(members.length) : '--'} label="People" />
+          <StatCard value={String(guidesRead)} label="Guides read" />
         </View>
 
         <View style={styles.settingsList}>

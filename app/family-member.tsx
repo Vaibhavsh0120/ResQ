@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Clock3, MapPin, MessageCircle, Phone, ShieldCheck } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
@@ -33,6 +33,27 @@ export default function FamilyMemberDetail() {
     setCheckingIn(false);
   };
 
+  const onCall = () => {
+    if (!person?.phone) return;
+    Linking.openURL(`tel:${person.phone}`);
+  };
+
+  const onMessage = () => {
+    if (!person?.phone) return;
+    // SMS URL separator differs by platform: iOS uses "&", Android uses "?".
+    const separator = Platform.OS === 'ios' ? '&' : '?';
+    Linking.openURL(`sms:${person.phone}${separator}body=`);
+  };
+
+  const onLocate = () => {
+    if (!person) return;
+    // No live-tracking backend yet — this shares the last known location we
+    // have on file, which mirrors what checkIn already surfaces below.
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(person.lastKnownLocation ?? person.name)}`
+    );
+  };
+
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <Header title={person?.name ?? 'Person'} onBack={() => router.back()} />
@@ -63,19 +84,35 @@ export default function FamilyMemberDetail() {
             </View>
 
             <View style={styles.actionsRow}>
-              <Pressable style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <Pressable
+                onPress={onCall}
+                disabled={!person.phone}
+                style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }, !person.phone && styles.actionButtonDisabled]}
+              >
                 <Phone size={18} color={colors.brand} />
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Call</Text>
               </Pressable>
-              <Pressable style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <Pressable
+                onPress={onMessage}
+                disabled={!person.phone}
+                style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }, !person.phone && styles.actionButtonDisabled]}
+              >
                 <MessageCircle size={18} color={colors.brand} />
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Message</Text>
               </Pressable>
-              <Pressable style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <Pressable
+                onPress={onLocate}
+                style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}
+              >
                 <MapPin size={18} color={colors.brand} />
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Locate</Text>
               </Pressable>
             </View>
+            {!person.phone && (
+              <Text style={[styles.noPhoneNote, { color: colors.inkMuted }]}>
+                No phone number on file for {person.name} yet — Call and Message are unavailable.
+              </Text>
+            )}
 
             <View style={styles.sectionHeading}>
               <Eyebrow>STATUS</Eyebrow>
@@ -89,7 +126,7 @@ export default function FamilyMemberDetail() {
                 <Text style={[styles.infoTitle, { color: colors.foreground }]}>
                   {person.tone === 'success' ? 'Checked in as safe' : 'Waiting on check-in'}
                 </Text>
-                <Text style={[styles.infoSubtitle, { color: colors.inkMuted }]}>Riverside district · today</Text>
+                <Text style={[styles.infoSubtitle, { color: colors.inkMuted }]}>{person.lastKnownLocation ?? 'Location not shared yet'}</Text>
               </View>
             </View>
 
@@ -119,9 +156,11 @@ const styles = StyleSheet.create({
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, marginTop: 6 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 10, fontWeight: '700' },
-  actionsRow: { flexDirection: 'row', gap: 9, marginTop: 20, marginBottom: 24 },
+  actionsRow: { flexDirection: 'row', gap: 9, marginTop: 20, marginBottom: 8 },
   actionButton: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, borderWidth: 1, borderRadius: radius.lg },
+  actionButtonDisabled: { opacity: 0.4 },
   actionLabel: { fontSize: 11, fontWeight: '700' },
+  noPhoneNote: { fontSize: 10, lineHeight: 14, marginBottom: 16 },
   sectionHeading: { marginBottom: 12 },
   h2: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3, marginTop: 4 },
   infoCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderWidth: 1, borderRadius: radius.md, marginBottom: 24 },

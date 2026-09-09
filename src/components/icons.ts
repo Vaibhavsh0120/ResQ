@@ -48,6 +48,7 @@ import {
   Sun,
   Moon,
   MonitorSmartphone,
+  Mail,
 } from 'lucide-react-native';
 
 export {
@@ -93,4 +94,5 @@ export {
   WifiOff,
   RefreshCw,
   AlertCircle,
+  Mail,
 };

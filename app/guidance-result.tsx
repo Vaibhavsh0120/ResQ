@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, Check, LifeBuoy, ShieldCheck } from '@/components/icons';
@@ -10,17 +10,30 @@ import { Eyebrow } from '@/components/Eyebrow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useGuidance } from '@/hooks/useGuidance';
+import { incrementGuidesReadCount } from '@/services/guidesReadService';
 
 export default function GuidanceResult() {
   const { colors } = useAppTheme();
   const params = useLocalSearchParams<{ types?: string }>();
   const types = (params.types ?? '').split(',').filter(Boolean);
   const { data: guidance, loading, error, load } = useGuidance();
+  // Guards against double-counting a single visit: load() can be called
+  // again (e.g. the ErrorState "Try again" retry) for the same params, but
+  // that's still one "guide read", not two.
+  const countedRef = useRef(false);
 
   useEffect(() => {
+    countedRef.current = false;
     load(types.length ? types : ['general']);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.types]);
+
+  useEffect(() => {
+    if (guidance && !countedRef.current) {
+      countedRef.current = true;
+      incrementGuidesReadCount();
+    }
+  }, [guidance]);
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>

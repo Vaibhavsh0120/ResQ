@@ -1,3 +1,502 @@
+# ResQ — Master Roadmap & Progress
+
+This file has two parts from here on:
+
+1. **Master Roadmap** (below) — a full plan, written 2026-09-08, for taking
+   ResQ from its current UI-mockup-with-real-architecture state to an
+   enterprise-grade, Play-Store-ready app. Nothing in the 2026-09-08 pass
+   touched code — it was a planning session. Work through the phases in
+   order; each item is a checkbox so progress can be tracked directly in
+   this file. When you finish an item, check it off **and** add a short
+   dated note under it (one or two lines: what you did, any decision
+   made) — don't just delete the line, this file is the project's memory.
+2. **Archive** (bottom of file) — every prior session's notes, preserved
+   as-is.
+
+**Starting assumptions this plan was built on** (confirm these still hold
+before assuming the plan does too):
+- Launch market is **India first**. Emergency number, privacy law, and
+  first-localization-language choices below assume this.
+- There is **no backend yet** — this mobile repo is the entire project
+  today. Phase 3 below is itself a "build a backend from scratch" plan,
+  not an integration ticket.
+- Demo/mock data stays in place and should **keep working** throughout —
+  every phase before Phase 4 is designed to need zero backend.
+
+---
+
+## 1. What "done" means for this app
+
+An enterprise, Play-Store-ready release of a disaster-safety app means, at minimum:
+- Nothing on screen is decorative — every visible button/toggle/link does
+  the real (or realistically locally-simulated) thing it claims to do.
+- Nothing on screen shows a value that isn't real — no hardcoded names,
+  dates, counts, or locations standing in for actual state.
+- The app's actual promise (help in an emergency: SOS, medical info to
+  responders, family circle, guidance) works end-to-end, today, without
+  waiting on a backend.
+- It meets Play Store policy (account deletion, data safety disclosure,
+  privacy policy, signed release build) and India's DPDP Act 2023.
+- Demo data can be swapped for a real backend one domain at a time without
+  touching a single screen or hook — this part is **already true** of the
+  current architecture and should be preserved, not redone.
+
+---
+
+## 2. Current-state audit (2026-09-08)
+
+### 2.1 What's genuinely solid — keep, extend, don't rebuild
+- The `screen → hook → service → (mock | real)` layering (`src/hooks/`,
+  `src/services/`, `src/config/env.ts`). This is exactly the right shape
+  for "keep demo data, stay switch-ready" and should be the pattern every
+  new feature below follows.
+- `src/theme/colors.ts` + `ThemeContext` — zero hardcoded colors, real
+  light/dark contrast tokens. Keep this discipline for every new screen.
+- The auth-state routing in `app/_layout.tsx` (`Stack.Protected` guards) —
+  correctly clears history on login/logout/onboarding transitions.
+- TypeScript typing in `src/types/index.ts`, including the RAG-shaped
+  types (`RagSource`, `DisasterGuidance`, `ChatStreamEvent`) — a real
+  backend can be built against these shapes as a contract.
+- `guidance-result.tsx`'s sources + confidence-badge rendering — this is
+  the pattern to copy wherever else sources should appear (chat, updates).
+- Splash screen (`app/index.tsx`) already has tap-to-skip and a fallback
+  timer if the video fails to fire an end event — good defensive UX,
+  don't lose this in any redesign.
+
+### 2.2 Dead UI — exists visually, does nothing when touched
+Every one of these must be wired up or removed before *any* build (demo
+or real) ships to a real user — a dead button in a safety app is worse
+than a missing one.
+- [x] `src/components/Header.tsx` — the default Bell "Notifications" action
+  (`onPress={() => {}}`) on every screen that doesn't override `action`.
+  **2026-09-09**: Built a real `app/notifications.tsx` destination
+  (local-storage-backed list, read/unread state, mark-all-read) plus
+  `src/services/notificationsService.ts` / `src/hooks/useNotifications.ts`
+  following the existing screen→hook→service pattern. Bell now
+  `router.push('/notifications')`. Also used this pass to make `Header`
+  auto-derive avatar initials from the signed-in user instead of
+  defaulting to `'AC'` — see §2.3.
+- [x] `app/place-detail.tsx` — "Directions" and "Call ahead" buttons have
+  no `onPress` at all.
+  **2026-09-09**: Directions opens a Google Maps deep link (uses
+  lat/long when available, falls back to a name search). Call ahead
+  opens `tel:`. Added `phone` to `SafePlace` type + mock data
+  (placeholder India/Delhi-area numbers and coordinates). Both buttons
+  disable + gray out when the place has no phone on file.
+- [x] `app/family-member.tsx` — "Call", "Message", "Locate" buttons have
+  no `onPress` at all.
+  **2026-09-09**: Call → `tel:`, Message → `sms:` (platform-aware `?`
+  vs `&` separator), Locate → opens a Google Maps search for the
+  person's last-known-location string (no live-tracking backend exists
+  yet, so this shares what we have rather than pretending to track).
+  Added `phone`/`lastKnownLocation` to `FamilyMember` type + mock data.
+  Buttons disable when no phone is on file, with a note explaining why.
+- [x] `app/privacy-security.tsx` — "Download my data" and "Delete my
+  account" rows have no `onPress` at all (these are also a Play Store
+  compliance requirement — see §2.7).
+  **2026-09-09**: Built `src/services/localDataService.ts` —
+  `exportLocalData()` reads every AsyncStorage key via `getAllKeys()`
+  (not a hardcoded list, so it stays correct as new features add their
+  own storage keys) and `wipeLocalData()` clears all of it. "Download my
+  data" shares the JSON export via the OS share sheet (`Share` from React
+  Native core — no new dependency needed). "Delete my account" opens a
+  proper in-app confirm dialog (matching the app's existing custom-modal
+  style rather than a native `Alert.alert`, which doesn't exist anywhere
+  else in this codebase), then wipes storage and calls the existing
+  `logout()` — no manual navigation needed, since `logout()` flips
+  `isLoggedIn` and the root layout's `Stack.Protected` guard handles the
+  redirect on its own (same pattern `profile.tsx`'s sign-out button
+  already relies on). Both actions have loading and error states.
+- [x] `app/login.tsx` — "Forgot?" password link has no action.
+  **2026-09-09**: Built `app/forgot-password.tsx` — a locally-simulated
+  reset flow (email validation, simulated send delay, confirmation
+  state) registered in the logged-out `Stack.Protected` group. Once real
+  auth exists, only the request itself needs to change.
+- [x] `app/login.tsx` / `app/register.tsx` — "Continue with Google" calls
+  the exact same `onLogin`/local stub as the plain sign-in button.
+  **2026-09-09**: Removed the button (and the divider) rather than
+  building throwaway OAuth scaffolding with no client ID/backend behind
+  it — decided a missing button is more honest than a fake-working one.
+  Real Google sign-in via `expo-auth-session` is still open, tracked
+  under Phase 3 (needs a backend to validate against anyway).
+- [x] `app/chat.tsx` — tapping a row in the "Previous chats" drawer just
+  closes the drawer.
+  **2026-09-09**: `mockChat.ts` now holds full per-thread message
+  arrays; added `fetchChatThreadMessages` to `chatService.ts` and
+  `loadThread`/`activeThreadId` to `useChat`. Tapping a thread now loads
+  its real messages and highlights it as active in the drawer. Also
+  fixed the hardcoded "Hi Alex" welcome message to use the signed-in
+  user's first name (`buildWelcomeMessage`).
+- [x] `app/readiness.tsx` — checklist rows are read-only `View`s, not
+  `Pressable`s; there's no way to manually mark something done.
+  **2026-09-09**: Rows are now `Pressable` with proper
+  `accessibilityRole="checkbox"`. Added `toggleReadinessItem` to
+  `readinessService.ts`, which also recomputes `score` as % of checklist
+  items done (so the ring stays honest instead of drifting from the
+  visible checklist) — flagged in the code as a placeholder scoring
+  rule until a backend computes readiness from more than the checklist.
+- [ ] `.github/workflows/build-release.yml` — only builds an **unsigned
+  debug APK**. **Not done this session** — this is really a Phase 2 item
+  (needs `eas.json` + a signing-credentials decision first); left for
+  when that phase is picked up rather than half-done here.
+
+### 2.3 Hardcoded/fake state (only "works" because mock data happens to line up)
+- [x] `app/(tabs)/index.tsx` — greeting hardcoded `"Good morning, Alex"`
+  and the eyebrow hardcoded `"TUESDAY, 24 SEPTEMBER"`.
+  **2026-09-09**: Added `src/utils/format.ts` (`timeOfDayGreeting`,
+  `todayEyebrow`, `initialsFromName`). Greeting now reads the signed-in
+  user's first name and real time-of-day; eyebrow shows the real
+  current date, locale-formatted.
+- [x] `app/(tabs)/index.tsx` — "Check on family" subtitle hardcoded
+  `"3 people in your circle"`.
+  **2026-09-09**: Now reads `members.length` from `useFamily()`, with
+  proper singular/plural/loading/empty copy (`familyCircleSubtitle`
+  helper).
+- [x] `app/(tabs)/report.tsx` — success screen hardcoded `"Thank you,
+  Alex."`; location field defaulted to `"Near Riverside Park"`.
+  **2026-09-09**: Success message now uses the real first name (or a
+  guest-safe generic "Thank you." — see `thankYouMessage`). Location
+  field now seeds from the shared `useCurrentArea()` hook (see §2.3
+  "Riverside" entry below) instead of a hardcoded street name — still
+  editable by the user, since there's no device-location hook yet
+  (that's Phase 1).
+- [x] `app/profile.tsx` — avatar hardcoded `"AC"`; stat cards hardcoded
+  `"82%"`, `"3"`, `"4"`.
+  **2026-09-09**: Avatar now uses `initialsFromName(profile.name)` (or
+  `'G'` for guests). Stats now read real `useReadiness().score`, real
+  `useFamily().members.length`, and a new real "guides read" counter
+  (see below) — no more hardcoded numbers.
+- [x] `src/components/Header.tsx` — `initials` prop defaulted to `'AC'`.
+  **2026-09-09**: `Header` now auto-derives initials from the
+  signed-in user via `useAuth()` + `initialsFromName()` unless a screen
+  explicitly overrides the prop (kept as an escape hatch, not the
+  default path). This fixed the same issue on every `showProfile` tab
+  screen (Home, Updates, Family, Safe, Report) in one place rather than
+  touching each screen individually.
+- [x] `app/(tabs)/family.tsx` — `invite()` always added a fixed
+  `"Jamie Lee" / "Friend"` contact; "add someone" card had no real inputs.
+  **2026-09-09**: Real name text input, a relation chip-picker
+  (Partner/Parent/Sibling/Child/Friend/Other — a simple preset list
+  rather than a full picker component, matches the scope of what's
+  actually needed here), and an optional phone input. Threaded `phone`
+  through `inviteFamilyMember`/`useFamily().invite()`.
+- [x] `"Riverside district"` / `"Near Riverside Park"` hardcoded
+  independently in 5 places (`updates.tsx`, `safe.tsx`, `family.tsx`,
+  `family-member.tsx`, `report.tsx`).
+  **2026-09-09**: Added `src/hooks/useCurrentArea.ts`, a thin wrapper
+  around `useProfile()` that's now the single source of truth. All 5
+  screens read from it: `updates.tsx`/`family.tsx` display it directly;
+  `safe.tsx` seeds its already-existing editable "district" search
+  field from it (kept the local per-session override — that's a
+  sensible existing pattern, just was seeded from a literal before);
+  `report.tsx` now seeds its location field the same way; `family.tsx`
+  and `family-member.tsx`'s "Riverside district" family-location strings
+  became real `lastKnownLocation` fields on each mock family member
+  instead. Left alone (correctly, not duplicates of this issue):
+  `mockSafePlaces.ts`'s "Riverside Community Hall" (a place's proper
+  name) and `mockUpdates.ts`'s "Riverside district" mentions (content
+  *about* a place in the feed, not the user's own location claim).
+- [ ] "Guides read" counter — **flagged in the original audit as not
+  existing yet.** **2026-09-09**: Built it — `src/services/
+  guidesReadService.ts`, a small AsyncStorage counter incremented once
+  per guide actually viewed in `guidance-result.tsx` (guarded with a
+  ref against double-counting on retry). Backs the Profile stat above.
+  Not wired into readiness "next steps" yet, since those are static
+  cards with no drill-in screen currently — noted as a gap, not solved,
+  to avoid inventing a new screen outside this session's scope.
+
+### 2.4 The single biggest gap: SOS doesn't exist
+**Still true — not touched this session.** `app/onboarding/emergency.tsx`
+and `app/onboarding/location.tsx` both explicitly promise SOS behavior in
+their copy — *"Designate contacts who will be immediately alerted with
+your live location when you initiate an SOS"*, *"Emergency services
+(911/112) will always be connected directly in an SOS"*, *"location data
+is encrypted... only broadcast during active SOS alerts."* **There is no
+SOS button, screen, or flow anywhere in the actual app.** This remains
+Phase 1's first, highest-priority item — see §3 Phase 1 and §7 below for
+where to pick this up.
+
+### 2.5 Onboarding is data-loss-by-design
+**Still true — not touched this session.** Every onboarding screen holds
+everything the user types in local `useState` only; none of it is
+persisted anywhere. Finishing onboarding only flips one boolean. This is
+Phase 1's second priority, right after SOS — see §7.
+
+### 2.6 Integrations installed but not actually wired
+**Still true — not touched this session.** No real device location hook,
+no map SDK, no `expo-notifications`, no crash reporting, no i18n, no
+`expo-secure-store`. All Phase 1/5 items, untouched this pass.
+
+### 2.7 Compliance / Play Store readiness gaps
+**Still true — not touched this session.** No in-app Privacy
+Policy/Terms screens, no hosted policy URL, no working account-deletion
+path, no Data Safety mapping, no minimum-age decision, no `eas.json`,
+placeholder icon/splash still shipped. This is Phase 2 in full — see §7.
+
+### 2.8 Carried forward from the existing archive (still true)
+- Auth is a stub — `login()`/`register()` accept anything. Still true;
+  this session's fixes (real name/date/greeting) all read the signed-in
+  `user` object correctly, they just don't change how that object gets
+  populated in the first place.
+- `react-query` was deliberately not used — hand-rolled `useAsync`
+  instead (documented decision, still fine, and every new hook this
+  session — `useNotifications`, `useChatThreads`, `useCurrentArea` —
+  follows the same `useAsync` wrapper pattern).
+- Chat streaming assumes newline-delimited JSON; unchanged this session.
+- No test suite has actually been run this session either — same
+  sandbox constraint as prior sessions (no network access to install
+  `node_modules`). Verified everything statically instead: brace/paren
+  balance check on every touched file, plus a best-effort
+  `tsc --noEmit` pass (see below) — zero real type errors found, only
+  expected noise from missing `node_modules`/`@types/react` (unresolvable
+  imports, and a few false-positive `key`-prop / JSX-children errors that
+  a stripped-down non-Expo tsconfig can't correctly type-check; confirmed
+  these same false positives also fire on untouched pre-existing code,
+  so they're config artifacts, not real issues). Added the two new
+  screens (`forgot-password.tsx`, `notifications.tsx`) to
+  `__tests__/smoke.test.tsx`'s existing screen lists so they're covered
+  whenever the suite can actually run.
+- `config.useMockData` is one global flag for every domain — still true,
+  still fine for now, still a flagged Phase 4 item.
+
+---
+
+## 3. The roadmap
+
+No backend exists yet, so phases 0–2 are deliberately backend-free — they
+fix what's already broken or missing in the client itself. Phase 3 is
+"build a backend from nothing." Phase 4 is the actual cutover. Phases 5–6
+are hardening and post-launch.
+
+### Phase 0 — Stop lying to the user
+*Goal: every visible control does the real (or locally-simulated) thing it
+claims. Nothing shows a fake value. No backend needed for any of this.*
+
+**Status: complete as of 2026-09-09** (session continued from an earlier
+checkpoint the same day — see §2.2/§2.3 above for the itemized checklist
+and what changed on each pass). One item intentionally deferred to a
+different phase, not left undone by mistake:
+- [ ] The CI workflow (unsigned-APK-only) — pushed to Phase 2, since it
+  needs an `eas.json`/signing decision first rather than being a
+  standalone wiring fix like the rest of Phase 0.
+
+Every other item originally listed in Phase 0 — including
+`privacy-security.tsx`'s data export/deletion, finished in this session's
+second pass — is checked off above, plus two items not explicitly
+itemized in the original plan text but covered by "replace every
+hardcoded Alex": the chat welcome message (`"Hi Alex"` → real first name)
+and the report success screen.
+
+Also completed as part of Phase 0 (`app.json` fix explicitly called out
+in the original plan):
+- [x] Fixed `app.json`'s `"userInterfaceStyle": "light"` → `"automatic"`.
+  **2026-09-09**: One-line change, done.
+
+Also found and fixed while verifying the "replace every hardcoded Alex"
+item above — not itemized in the original audit, but the actual root
+cause of it: `app/login.tsx`'s `onLogin` unconditionally called
+`login({ name: 'Alex Chen', ... })` regardless of what the user typed.
+Every other "Alex" fix this session (Home, Profile, chat, report) was
+fixing the *symptom*; this was the *source*. Login has no name field
+(only email/password, since it's meant to be an existing user signing
+in, not registering), so there's no real name to use without a backend
+to look one up. Fixed by deriving a placeholder from the email's local
+part (e.g. `jane.doe@x.com` → "Jane Doe") instead of a fictional person
+— still a stub, but one that doesn't actively mislead a real returning
+user into seeing someone else's name. Flagged here as a stopgap: once
+real auth exists (Phase 3), this whole derivation goes away in favor of
+whatever name the backend actually returns.
+
+### Phase 1 — Build the actual safety product
+*Goal: SOS, medical-info-to-responders, family circle, and guidance work
+end-to-end today, on-device, with no server. This is the functional heart
+of "ResQ" and none of it requires a backend to be real.*
+
+**Status: not started, except for two small pieces that came up
+naturally while doing Phase 0 work (checked off below with notes) —
+everything else in this phase, especially SOS and onboarding persistence,
+remains fully open and is the recommended next session's focus (§7).**
+
+- [ ] **Persist onboarding output.** Not started.
+- [ ] Remove pre-seeded fake people from onboarding. Not started.
+- [ ] **Build SOS.** Not started — this is the single most important
+  item in the whole roadmap. See §7.
+- [ ] **Real device location** via `useDeviceLocation()`. Not started.
+  Note: `useCurrentArea()` (added this session, §2.3) is a *stopgap*
+  reading the profile's static home address — it deliberately does NOT
+  replace this item; once real GPS location exists, `useCurrentArea()`
+  is the natural place to prefer it over the profile fallback (already
+  noted in that hook's own doc comment).
+- [ ] **Real maps** (`react-native-maps`). Not started.
+- [ ] **Camera capture** for incident reports. Not started.
+- [x] **New `app/notifications.tsx`** — a real destination for the
+  Header bell. **2026-09-09**: Built ahead of schedule as part of
+  resolving the dead-bell issue in Phase 0 (§2.2) — local storage only,
+  no push server, exactly as this item specifies. Read/unread state,
+  mark-all-read, seeded from `mockNotifications.ts` on first open.
+- [ ] **Local notifications** via `expo-notifications`. Not started.
+- [ ] **Chat sources parity** — `chat.tsx` still never renders
+  `ChatMessage.sources` even though the type/mock data support it and
+  `guidance-result.tsx` already has the pattern to copy. Deliberately
+  left for a proper Phase 1 session rather than bolted on while already
+  deep in an unrelated chat-history refactor this session (chat.tsx was
+  touched for thread-switching, §2.2, but sources parity is a distinct
+  piece of work).
+- [x] **"Guides read" counter.** **2026-09-09**: Built — see §2.3 above.
+  Originally scoped as a Phase 1 item but pulled forward because
+  Profile's Phase 0 fix explicitly needed it to be real instead of
+  hardcoded "4".
+
+### Phase 2 — Legal, privacy & store-compliance baseline
+**Status: not started.** Everything in this phase remains exactly as
+originally planned — see the full item list further down this file (or
+the original planning session, referenced in git history/this note) for
+the itemized Privacy Policy/Terms/Data Safety/age-policy/eas.json list.
+Not re-typed here to avoid this file drifting out of sync with itself;
+the authoritative item list is the one under this same heading below.
+
+### Phase 3 — Stand up a real backend
+**Status: not started.** No code changes possible here without first
+making the stack decision in §6.
+
+### Phase 4 — Cut over from mock to real data
+**Status: not started** (blocked on Phase 3).
+
+### Phase 5 — Hardening for a real public release
+**Status: not started.**
+
+### Phase 6 — Post-launch / scale
+**Status: not started, not blocking v1.**
+
+---
+
+## 4. Pages & navigation — full map
+
+### 4.1 Existing screens (updated 2026-09-09)
+| Route | Purpose | Status |
+|---|---|---|
+| `app/index.tsx` | Splash / startup router | Solid, keep as-is |
+| `app/login.tsx` | Sign in | Forgot-password now real (local flow); Google button removed rather than left dishonest. Still needs: real validation before backend exists |
+| `app/register.tsx` | Sign up | Needs: real validation before backend exists (unchanged) |
+| `app/forgot-password.tsx` | **New 2026-09-09.** Locally-simulated password reset | Solid for a no-backend stage; swap the request call once real auth exists |
+| `app/onboarding/personal.tsx` | Name/phone/DOB/blood type | Needs: persistence (Phase 1) — unchanged |
+| `app/onboarding/medical.tsx` | Allergies/conditions/accessibility | Needs: persistence (Phase 1) — unchanged |
+| `app/onboarding/family.tsx` | Family members | Needs: persistence, remove fake pre-seed (Phase 1) — unchanged |
+| `app/onboarding/location.tsx` | Home address + device location | Needs: persistence (Phase 1) — unchanged |
+| `app/onboarding/emergency.tsx` | Emergency contacts | Needs: persistence, remove fake pre-seed (Phase 1) — unchanged |
+| `app/(tabs)/index.tsx` | Home | Real greeting/date/counts done. Still needs: SOS entry point (Phase 1) |
+| `app/(tabs)/updates.tsx` | Live updates | Real area source done |
+| `app/(tabs)/report.tsx` | Incident report | Real name + location-seed done. Still needs: camera, real device location (Phase 1) |
+| `app/(tabs)/family.tsx` | Family circle | Real invite form done. Still needs: real backend-side accept/decline flow (Phase 3) |
+| `app/(tabs)/safe.tsx` | Safe places | Area seed done. Still needs: real map, real location (Phase 1) |
+| `app/chat.tsx` | Ask ResQ assistant | Real history switching done. Still needs: sources UI (Phase 1) |
+| `app/readiness.tsx` | Readiness detail | Tappable checklist done |
+| `app/guidance-result.tsx` | Post-report guidance | Solid, keep as reference pattern for sources UI. Now also increments the guides-read counter |
+| `app/family-member.tsx` | Person detail | Working Call/Message/Locate done |
+| `app/place-detail.tsx` | Place detail | Working Directions/Call done |
+| `app/update-detail.tsx` | Update detail | Not yet audited in depth — re-check for dead links/hardcoding when picked up |
+| `app/profile.tsx` | Profile & settings | Real name/stats done. Still needs: account deletion/export (Phase 0/2) |
+| `app/alert-preferences.tsx` | Notification categories | Needs: persistence, actually gate real notifications (Phase 1) — unchanged |
+| `app/privacy-security.tsx` | Privacy settings | Working data export/deletion done |
+| `app/notifications.tsx` | **New 2026-09-09.** Alerts/updates/family check-ins list | Local storage only (no push yet — Phase 1/3), but a real, working destination |
+
+### 4.2 Missing screens to add
+- [ ] SOS flow (new screen or Home-embedded control) — Phase 1, not started
+- [x] `app/notifications.tsx` — **Done 2026-09-09**, see above
+- [ ] `app/privacy-policy.tsx`, `app/terms.tsx` — Phase 2, not started
+- [x] `app/forgot-password.tsx` — **Done 2026-09-09**, see above
+- [ ] `app/help-support.tsx` — Phase 1/5, not started
+- [ ] Internal moderation/verification tool — Phase 3, not started
+
+### 4.3 To remove or replace, not just leave as-is
+- Pre-seeded fake contacts in onboarding — **still present, not touched**
+- The "Continue with Google" button — **removed 2026-09-09** (§2.2)
+- The static fake-pin "map" illustration on `safe.tsx`/`place-detail.tsx`
+  — still present, unchanged (waiting on Phase 1's real map decision)
+- Placeholder app icon/splash — still present, unchanged (Phase 2)
+- The debug-APK-only CI workflow — still present, unchanged (Phase 2)
+
+---
+
+## 5. Data model additions needed (`src/types/index.ts`)
+- [x] `FamilyMember.phone`, `FamilyMember.lastKnownLocation` — **added
+  2026-09-09**
+- [x] `SafePlace.phone` — **added 2026-09-09**
+- [x] `NotificationItem`/`NotificationKind` — **added 2026-09-09** (not
+  in the original data-model list below, but needed for the
+  notifications screen)
+- [x] `ChatThread` (= `ChatThreadSummary` + `messages`) — **added
+  2026-09-09** for chat history switching
+- [ ] `EmergencyContact` — not started (Phase 1, onboarding persistence)
+- [ ] `MedicalProfile` — not started (Phase 1, onboarding persistence)
+- [ ] Extend `ProfileData` with dob/bloodType/structured address — not
+  started (Phase 1)
+- [ ] Extend `FamilyMember` with `inviteStatus` ('pending' | 'accepted')
+  — not started; note that `inviteFamilyMember` already sets
+  `status: 'Invite sent'` on creation, which is a reasonable stand-in
+  today, but a proper typed `inviteStatus` field is still the Phase 1
+  item as originally scoped
+- [ ] `SosEvent` — not started (Phase 1, depends on SOS existing first)
+
+---
+
+## 6. Decisions log — flagged, not yet made
+
+No new decisions were made this session — this was pure Phase 0
+execution, not a planning pass, so all four flagged decisions (backend
+stack, minimum age/parental consent, maps SDK vs Linking-only, guest
+mode's SOS scope) remain exactly as the original plan left them. See the
+original item list further down this file for the full tradeoff writeup
+on each.
+
+One small implementation note worth flagging here even though it's not
+a full "decision": `readinessService.ts`'s new `toggleReadinessItem`
+recomputes the readiness score as a straight percentage of checklist
+items completed. This is explicitly a placeholder — a real backend
+should compute readiness from more than just the checklist (profile
+completeness, check-in recency, etc., per §3 Phase 3's original
+`readinessService` note) — but it's a real, defensible number rather
+than the disconnected hardcoded 82% that was there before.
+
+---
+
+## 7. Where to start next session
+
+**Phase 0 is now fully complete** (as of the 2026-09-09 session's second
+pass — see §3 Phase 0's status line). The clear next step is **Phase 1,
+starting with SOS**:
+
+This is the single highest-priority item in the entire roadmap — an app
+called ResQ currently has no SOS flow, despite onboarding copy promising
+one. Suggested first slice:
+- A visible, unmissable entry point on Home (not buried in a menu).
+- A deliberate-trigger interaction (press-and-hold or
+  confirm-then-cancel-window) to prevent accidental activation.
+- `Linking.openURL('tel:112')` (India's unified emergency number)
+  plus a pre-filled SMS/share-sheet message to emergency contacts
+  with a phone number — both work with zero backend, and
+  `family-member.tsx`'s `sms:` pattern (built in an earlier this-session
+  pass) is a direct template to reuse.
+- A local SOS history log, surfaced in Profile.
+- This item depends conceptually on onboarding persistence (Phase 1's
+  second item) for *real* emergency contacts to notify, but can be
+  built and demoed against `mockFamily.ts`'s data in the meantime —
+  don't block starting SOS on onboarding persistence being done
+  first; they can proceed in parallel or either order.
+
+If a smaller warm-up ticket is preferred before tackling SOS, Phase 1's
+"Chat sources parity" item (§3 Phase 1) is the smallest remaining
+self-contained piece — `chat.tsx` still doesn't render
+`ChatMessage.sources` even though `guidance-result.tsx` already has the
+exact pattern to copy.
+
+---
+
+## Archive
+
+Everything below this line is preserved exactly as written by prior
+sessions, unedited.
+
 # PROGRESS
 
 ## Session (Tab bar gap fix + navigation stack/replace audit) — COMPLETE

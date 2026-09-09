@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
@@ -11,16 +11,31 @@ import { Eyebrow } from '@/components/Eyebrow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ErrorState } from '@/components/AsyncState';
 import { useIncidentReport } from '@/hooks/useIncidentReport';
+import { useCurrentArea } from '@/hooks/useCurrentArea';
+import { useAuth } from '@/context/AuthContext';
 import { disasterTypes } from '@/data/mockGuidance';
 
 export default function Report() {
   const { colors } = useAppTheme();
   const { submit, submitting, error, result, reset } = useIncidentReport();
+  const { area } = useCurrentArea();
+  const { user, isGuest } = useAuth();
   const [reporting, setReporting] = useState(false);
   const [types, setTypes] = useState<string[]>([]);
-  const [location, setLocation] = useState('Near Riverside Park');
+  const [location, setLocation] = useState('');
+  const [locationSeeded, setLocationSeeded] = useState(false);
   const [description, setDescription] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // No device-location hook yet (PROGRESS.md Phase 1), so this seeds from
+  // the user's profile area rather than a hardcoded street name — same
+  // single-source-of-truth pattern as safe.tsx/updates.tsx.
+  useEffect(() => {
+    if (area && !locationSeeded) {
+      setLocation(area);
+      setLocationSeeded(true);
+    }
+  }, [area, locationSeeded]);
 
   const toggleType = (type: string) =>
     setTypes((current) => (current.includes(type) ? current.filter((t) => t !== type) : [...current, type]));
@@ -63,7 +78,7 @@ export default function Report() {
             <View style={[styles.successIcon, { backgroundColor: colors.brandSoft }]}>
               <Check size={28} color={colors.brand} />
             </View>
-            <Text style={[styles.successTitle, { color: colors.foreground }]}>Thank you, Alex.</Text>
+            <Text style={[styles.successTitle, { color: colors.foreground }]}>{thankYouMessage(user?.name, isGuest)}</Text>
             <Text style={[styles.successBody, { color: colors.inkMuted }]}>
               Your report is marked as reported, not verified. ResQ will use it to improve local awareness.
             </Text>
@@ -210,6 +225,12 @@ export default function Report() {
       </Screen>
     </View>
   );
+}
+
+function thankYouMessage(name: string | undefined, isGuest: boolean): string {
+  if (isGuest || !name) return 'Thank you.';
+  const firstName = name.trim().split(/\s+/)[0];
+  return `Thank you, ${firstName}.`;
 }
 
 const styles = StyleSheet.create({

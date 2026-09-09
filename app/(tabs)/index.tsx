@@ -16,10 +16,18 @@ import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
 import { useReadiness } from '@/hooks/useReadiness';
+import { useFamily } from '@/hooks/useFamily';
+import { useAuth } from '@/context/AuthContext';
+import { timeOfDayGreeting, todayEyebrow } from '@/utils/format';
 
 export default function Home() {
   const { colors } = useAppTheme();
   const { data: readiness } = useReadiness();
+  const { members } = useFamily();
+  const { user } = useAuth();
+
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const greeting = firstName ? `${timeOfDayGreeting()}, ${firstName}` : timeOfDayGreeting();
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -27,8 +35,8 @@ export default function Home() {
       <Screen>
         <View style={styles.greeting}>
           <View>
-            <Eyebrow>TUESDAY, 24 SEPTEMBER</Eyebrow>
-            <Text style={[styles.h1, { color: colors.foreground }]}>Good morning, Alex</Text>
+            <Eyebrow>{todayEyebrow()}</Eyebrow>
+            <Text style={[styles.h1, { color: colors.foreground }]}>{greeting}</Text>
           </View>
         </View>
 
@@ -111,7 +119,7 @@ export default function Home() {
             iconColor={colors.blue}
             icon={<Users size={19} color={colors.blue} />}
             title="Check on family"
-            subtitle="3 people in your circle"
+            subtitle={familyCircleSubtitle(members?.length)}
           />
           <ActionCard
             onPress={() => router.push('/chat')}
@@ -143,6 +151,13 @@ export default function Home() {
       </Screen>
     </View>
   );
+}
+
+function familyCircleSubtitle(count: number | undefined): string {
+  if (count == null) return 'Loading your circle...';
+  if (count === 0) return 'Add your first contact';
+  if (count === 1) return '1 person in your circle';
+  return `${count} people in your circle`;
 }
 
 function ActionCard({

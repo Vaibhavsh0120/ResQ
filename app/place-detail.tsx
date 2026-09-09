@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Clock3, HomeIcon, MapPin, Navigation, Phone } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
@@ -18,6 +18,20 @@ export default function PlaceDetail() {
   const { data: places, loading, error, refresh } = useSafePlaces();
 
   const place = (places ?? []).find((p) => p.id === id);
+
+  const onDirections = () => {
+    if (!place) return;
+    const url =
+      place.latitude != null && place.longitude != null
+        ? `https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`;
+    Linking.openURL(url);
+  };
+
+  const onCallAhead = () => {
+    if (!place?.phone) return;
+    Linking.openURL(`tel:${place.phone}`);
+  };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -49,11 +63,15 @@ export default function PlaceDetail() {
             </View>
 
             <View style={styles.actionsRow}>
-              <Pressable style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <Pressable onPress={onDirections} style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
                 <Navigation size={18} color={colors.brand} />
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Directions</Text>
               </Pressable>
-              <Pressable style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <Pressable
+                onPress={onCallAhead}
+                disabled={!place.phone}
+                style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }, !place.phone && styles.actionButtonDisabled]}
+              >
                 <Phone size={18} color={colors.brand} />
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Call ahead</Text>
               </Pressable>
@@ -113,6 +131,7 @@ const styles = StyleSheet.create({
   detail: { fontSize: 12, marginTop: 6 },
   actionsRow: { flexDirection: 'row', gap: 9, marginBottom: 24 },
   actionButton: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, borderWidth: 1, borderRadius: radius.lg },
+  actionButtonDisabled: { opacity: 0.4 },
   actionLabel: { fontSize: 11, fontWeight: '700' },
   sectionHeading: { marginBottom: 12 },
   h2: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3, marginTop: 4 },

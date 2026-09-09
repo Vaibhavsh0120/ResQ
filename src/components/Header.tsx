@@ -1,9 +1,12 @@
 import React from 'react';
 import { ArrowLeft, Bell } from '@/components/icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
+import { useAuth } from '@/context/AuthContext';
+import { initialsFromName } from '@/utils/format';
 import { IconButton } from './IconButton';
 import { Logo } from './Logo';
 
@@ -25,12 +28,18 @@ type Props = {
   /** Show a back arrow on the left instead (used only by screens reached by drilling in). */
   onBack?: () => void;
   action?: React.ReactNode;
+  /** Overrides the auto-derived initials below. Rarely needed — Header already reads the signed-in user. */
   initials?: string;
 };
 
-export function Header({ title, showProfile = false, onProfilePress, onBack, action, initials = 'AC' }: Props) {
+export function Header({ title, showProfile = false, onProfilePress, onBack, action, initials }: Props) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { user, isGuest } = useAuth();
+
+  // Auto-derive from the signed-in user unless a screen explicitly passes
+  // its own `initials` (kept as an escape hatch, not the default path).
+  const resolvedInitials = initials ?? (isGuest ? 'G' : initialsFromName(user?.name));
 
   return (
     <View style={[styles.header, { height: insets.top + HEADER_CONTENT_HEIGHT }]}>
@@ -42,7 +51,7 @@ export function Header({ title, showProfile = false, onProfilePress, onBack, act
           style={[styles.avatarButton, { backgroundColor: colors.brandDeep }]}
           hitSlop={4}
         >
-          <Text style={[styles.avatarText, { color: colors.onBrand }]}>{initials}</Text>
+          <Text style={[styles.avatarText, { color: colors.onBrand }]}>{resolvedInitials}</Text>
         </Pressable>
       ) : onBack ? (
         <IconButton label="Go back" onPress={onBack}>
@@ -63,7 +72,7 @@ export function Header({ title, showProfile = false, onProfilePress, onBack, act
       </View>
 
       {action ?? (
-        <IconButton label="Notifications" onPress={() => {}} muted>
+        <IconButton label="Notifications" onPress={() => router.push('/notifications')} muted>
           <Bell size={18} color={colors.inkMuted} />
         </IconButton>
       )}

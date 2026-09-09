@@ -1,14 +1,20 @@
 import { useCallback, useRef, useState } from 'react';
-import { streamChatReply } from '@/services/chatService';
-import { mockWelcomeMessage } from '@/data/mockChat';
+import { streamChatReply, fetchChatThreadMessages } from '@/services/chatService';
+import { buildWelcomeMessage } from '@/data/mockChat';
+import { useAuth } from '@/context/AuthContext';
 import { ChatMessage, ChatStreamEvent } from '@/types';
 
 let nextId = 1;
 const genId = (prefix: string) => `${prefix}-${Date.now()}-${nextId++}`;
 
 export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([mockWelcomeMessage]);
+  const { user } = useAuth();
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const [messages, setMessages] = useState<ChatMessage[]>([buildWelcomeMessage(firstName)]);
   const [sending, setSending] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const send = useCallback(
@@ -50,8 +56,27 @@ export function useChat() {
 
   const startNewConversation = useCallback(() => {
     abortRef.current?.abort();
-    setMessages([mockWelcomeMessage]);
-  }, []);
+    setActiveThreadId(null);
+    setMessages([buildWelcomeMessage(firstName)]);
+  }, [firstName]);
 
-  return { messages, sending, send, startNewConversation };
+  const loadThread = useCallback(
+    async (threadId: string) => {
+      abortRef.current?.abort();
+      setLoadingThread(true);
+      setThreadError(null);
+      try {
+        const threadMessages = await fetchChatThreadMessages(threadId);
+        setMessages(threadMessages);
+        setActiveThreadId(threadId);
+      } catch (err) {
+        setThreadError(err instanceof Error ? err.message : 'Could not load that conversation.');
+      } finally {
+        setLoadingThread(false);
+      }
+    },
+    []
+  );
+
+  return { messages, sending, send, startNewConversation, loadThread, loadingThread, threadError, activeThreadId };
 }

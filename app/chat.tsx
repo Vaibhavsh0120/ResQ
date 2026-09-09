@@ -18,19 +18,26 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/IconButton';
 import { useHideTabBar } from '@/context/useHideTabBar';
 import { useChat } from '@/hooks/useChat';
-import { mockChatSuggestions, mockChatThreads } from '@/data/mockChat';
+import { useChatThreads } from '@/hooks/useChatThreads';
+import { mockChatSuggestions } from '@/data/mockChat';
 
 export default function Chat() {
   useHideTabBar();
   const { colors } = useAppTheme();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { messages, sending, send, startNewConversation } = useChat();
+  const { messages, sending, send, startNewConversation, loadThread, loadingThread, activeThreadId } = useChat();
+  const { data: threads } = useChatThreads();
   const [input, setInput] = useState('');
 
   const onSend = (value = input) => {
     if (!value.trim()) return;
     send(value);
     setInput('');
+  };
+
+  const onSelectThread = async (threadId: string) => {
+    setHistoryOpen(false);
+    await loadThread(threadId);
   };
 
   return (
@@ -65,8 +72,12 @@ export default function Chat() {
               <Text style={[styles.newChatText, { color: colors.brand }]}>New conversation</Text>
               <Plus size={15} color={colors.brand} />
             </Pressable>
-            {mockChatThreads.map((thread) => (
-              <Pressable key={thread.id} style={styles.historyRow} onPress={() => setHistoryOpen(false)}>
+            {(threads ?? []).map((thread) => (
+              <Pressable
+                key={thread.id}
+                style={[styles.historyRow, thread.id === activeThreadId && { backgroundColor: colors.surfaceSoft, borderRadius: radius.md }]}
+                onPress={() => onSelectThread(thread.id)}
+              >
                 <MessageCircle size={15} color={colors.foreground} />
                 <View style={styles.flex}>
                   <Text style={[styles.historyText, { color: colors.foreground }]}>{thread.title}</Text>
@@ -87,7 +98,7 @@ export default function Chat() {
           <View>
             <Text style={[styles.chatIntroTitle, { color: colors.foreground }]}>ResQ guide</Text>
             <Text style={[styles.chatIntroSubtitle, { color: colors.inkMuted }]}>
-              {sending ? 'Typing...' : 'Usually replies instantly'}
+              {loadingThread ? 'Loading conversation...' : sending ? 'Typing...' : 'Usually replies instantly'}
             </Text>
           </View>
         </View>

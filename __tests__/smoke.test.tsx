@@ -95,6 +95,7 @@ const staticScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/index.tsx (splash)', () => require('../app/index').default],
   ['app/login.tsx', () => require('../app/login').default],
   ['app/register.tsx', () => require('../app/register').default],
+  ['app/forgot-password.tsx', () => require('../app/forgot-password').default],
   ['app/onboarding/personal.tsx', () => require('../app/onboarding/personal').default],
   ['app/onboarding/medical.tsx', () => require('../app/onboarding/medical').default],
   ['app/onboarding/family.tsx', () => require('../app/onboarding/family').default],
@@ -117,6 +118,7 @@ const dataScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/(tabs)/updates.tsx', () => require('../app/(tabs)/updates').default],
   ['app/(tabs)/report.tsx', () => require('../app/(tabs)/report').default],
   ['app/profile.tsx', () => require('../app/profile').default],
+  ['app/notifications.tsx', () => require('../app/notifications').default],
 ];
 
 // Screens that read an id from route params and look it up in loaded data —

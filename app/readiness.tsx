@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   BriefcaseMedical,
@@ -22,7 +22,7 @@ const STEP_ICONS = { BriefcaseMedical, Droplets, Flashlight, Radio };
 
 export default function Readiness() {
   const { colors } = useAppTheme();
-  const { data: readiness, loading, error, refresh } = useReadiness();
+  const { data: readiness, loading, error, refresh, toggleItem } = useReadiness();
 
   const doneCount = readiness?.checklist.filter((i) => i.done).length ?? 0;
   const total = readiness?.checklist.length ?? 0;
@@ -58,7 +58,14 @@ export default function Readiness() {
 
             <View style={styles.checklist}>
               {readiness.checklist.map((item) => (
-                <View key={item.id} style={[styles.checklistRow, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+                <Pressable
+                  key={item.id}
+                  onPress={() => toggleItem(item.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: item.done }}
+                  accessibilityLabel={item.label}
+                  style={[styles.checklistRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
+                >
                   <View
                     style={[
                       styles.checkCircle,
@@ -73,7 +80,7 @@ export default function Readiness() {
                   <Text style={[styles.checklistLabel, { color: item.done ? colors.foreground : colors.inkMuted }]}>
                     {item.label}
                   </Text>
-                </View>
+                </Pressable>
               ))}
             </View>
 

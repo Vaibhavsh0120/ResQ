@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronRight, Clock3, Plus, ShieldCheck } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
@@ -11,23 +11,36 @@ import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useFamily } from '@/hooks/useFamily';
+import { useCurrentArea } from '@/hooks/useCurrentArea';
 import { FamilyMember } from '@/types';
+
+const RELATION_OPTIONS = ['Partner', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'];
 
 export default function Family() {
   const { colors } = useAppTheme();
   const { members, loading, error, refresh, checkIn, invite } = useFamily();
+  const { area } = useCurrentArea();
   const [addingOpen, setAddingOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newRelation, setNewRelation] = useState('');
+  const [newPhone, setNewPhone] = useState('');
 
   const list = members ?? [];
   const safeCount = list.filter((p) => p.tone === 'success').length;
   const statusColor = (tone: FamilyMember['tone']) => (tone === 'success' ? colors.brand : colors.warning);
 
+  const canSendInvite = newName.trim().length > 0 && newRelation.trim().length > 0;
+
   const sendInvite = async () => {
+    if (!canSendInvite) return;
     setInviting(true);
-    await invite('Jamie Lee', 'Friend');
+    await invite(newName.trim(), newRelation.trim(), newPhone.trim() || undefined);
     setInviting(false);
     setAddingOpen(false);
+    setNewName('');
+    setNewRelation('');
+    setNewPhone('');
   };
 
   return (
@@ -111,8 +124,43 @@ export default function Family() {
             {addingOpen && (
               <View style={[styles.addPersonCard, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
                 <Text style={[styles.addPersonTitle, { color: colors.foreground }]}>Add someone to your circle</Text>
-                <Text style={[styles.addPersonBody, { color: colors.inkMuted }]}>Demo mode is ready for a new contact.</Text>
-                <PrimaryButton title="Send invite" onPress={sendInvite} loading={inviting} />
+                <TextInput
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="Full name"
+                  placeholderTextColor={colors.inkMuted}
+                  style={[styles.addPersonInput, { borderColor: colors.line, color: colors.foreground, backgroundColor: colors.surface }]}
+                  autoCapitalize="words"
+                />
+                <View style={styles.relationChips}>
+                  {RELATION_OPTIONS.map((relation) => {
+                    const selected = newRelation === relation;
+                    return (
+                      <Pressable
+                        key={relation}
+                        onPress={() => setNewRelation(relation)}
+                        style={[
+                          styles.relationChip,
+                          {
+                            borderColor: selected ? colors.brand : colors.line,
+                            backgroundColor: selected ? colors.brand : colors.surface,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.relationChipText, { color: selected ? colors.onBrand : colors.inkMuted }]}>{relation}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <TextInput
+                  value={newPhone}
+                  onChangeText={setNewPhone}
+                  placeholder="Phone number (optional)"
+                  placeholderTextColor={colors.inkMuted}
+                  keyboardType="phone-pad"
+                  style={[styles.addPersonInput, { borderColor: colors.line, color: colors.foreground, backgroundColor: colors.surface }]}
+                />
+                <PrimaryButton title="Send invite" onPress={sendInvite} loading={inviting} disabled={!canSendInvite} />
               </View>
             )}
 
@@ -129,7 +177,7 @@ export default function Family() {
               </View>
               <View style={styles.flex}>
                 <Text style={[styles.checkinTitle, { color: colors.foreground }]}>Next check-in</Text>
-                <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · Riverside district</Text>
+                <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
               </View>
               <Pressable onPress={() => checkIn('fam-2')} hitSlop={8}>
                 <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in</Text>
@@ -168,6 +216,10 @@ const styles = StyleSheet.create({
   addPersonCard: { gap: 9, padding: 14, marginBottom: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.lg },
   addPersonTitle: { fontSize: 13, fontWeight: '700' },
   addPersonBody: { fontSize: 10 },
+  addPersonInput: { height: 44, paddingHorizontal: 12, borderWidth: 1, borderRadius: radius.sm, fontSize: 12 },
+  relationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  relationChip: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderRadius: radius.pill },
+  relationChipText: { fontSize: 11, fontWeight: '700' },
   checkinCard: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 20, padding: 13, borderRadius: 15 },
   insightIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   checkinTitle: { fontSize: 12, fontWeight: '700' },

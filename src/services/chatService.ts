@@ -1,7 +1,15 @@
 import { config } from '@/config/env';
 import { ApiError } from './apiClient';
-import { mockAssistantReply, mockChatThreads } from '@/data/mockChat';
+import { findMockThreadMessages, findMockThreadSummaries } from '@/data/mockChat';
 import { ChatMessage, ChatStreamEvent, ChatThreadSummary } from '@/types';
+
+/**
+ * Canned assistant reply used by the mock chat service. A real
+ * implementation replaces this with a call to the RAG chat endpoint
+ * (see streamChatReply below), most likely streamed token by token.
+ */
+const mockAssistantReply =
+  'A good first step is to keep it simple: water, a small first aid kit, a flashlight, spare power, and any essential medication. I can help you make a checklist.';
 
 /**
  * Sends a user message to the ResQ assistant and streams the response back
@@ -77,9 +85,25 @@ async function mockStreamReply(onEvent: (event: ChatStreamEvent) => void, signal
 
 export async function fetchChatThreads(): Promise<ChatThreadSummary[]> {
   if (config.useMockData) {
-    return mockChatThreads;
+    return findMockThreadSummaries();
   }
   const response = await fetch(`${config.apiBaseUrl}/v1/chat/threads`);
   if (!response.ok) throw new ApiError('Could not load previous conversations.', response.status);
+  return response.json();
+}
+
+/**
+ * Loads a previous thread's full message history — the real backing for
+ * tapping a row in chat.tsx's history drawer (previously a dead tap that
+ * only closed the drawer; see PROGRESS.md Phase 0).
+ */
+export async function fetchChatThreadMessages(threadId: string): Promise<ChatMessage[]> {
+  if (config.useMockData) {
+    const messages = findMockThreadMessages(threadId);
+    if (!messages) throw new ApiError('That conversation could not be found.', 404);
+    return messages;
+  }
+  const response = await fetch(`${config.apiBaseUrl}/v1/chat/threads/${threadId}`);
+  if (!response.ok) throw new ApiError('Could not load that conversation.', response.status);
   return response.json();
 }

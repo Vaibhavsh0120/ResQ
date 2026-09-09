@@ -21,7 +21,7 @@ export async function checkInFamilyMember(memberId: string): Promise<FamilyMembe
   });
 }
 
-export async function inviteFamilyMember(name: string, relation: string): Promise<FamilyMember> {
+export async function inviteFamilyMember(name: string, relation: string, phone?: string): Promise<FamilyMember> {
   if (config.useMockData) {
     return mockDelay({
       id: `fam-${Date.now()}`,
@@ -35,10 +35,12 @@ export async function inviteFamilyMember(name: string, relation: string): Promis
         .toUpperCase(),
       status: 'Invite sent',
       tone: 'warning',
+      phone: phone || undefined,
+      lastKnownLocation: 'Location not shared yet',
     });
   }
   return apiRequest<FamilyMember>(config.endpoints.familyStatus, {
     method: 'POST',
-    body: { name, relation },
+    body: { name, relation, phone },
   });
 }
