@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -6,6 +6,8 @@ import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { MapPin, Navigation } from '@/components/icons';
+import { getOnboardingLocation, saveOnboardingLocation } from '@/services/onboardingService';
+import { mergeProfile } from '@/services/profileService';
 
 export default function LocationStep() {
   const { colors } = useAppTheme();
@@ -16,6 +18,16 @@ export default function LocationStep() {
   const [landmark, setLandmark] = useState('');
   const [locating, setLocating] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    getOnboardingLocation().then((saved) => {
+      if (!saved) return;
+      setAddress(saved.address);
+      setCity(saved.city);
+      setStateRegion(saved.stateRegion);
+      setLandmark(saved.landmark);
+    });
+  }, []);
 
   const handleUseCurrentLocation = async () => {
     try {
@@ -50,11 +62,28 @@ export default function LocationStep() {
     }
   };
 
-  const onContinue = () => {
+  const persist = async () => {
+    const data = { address: address.trim(), city: city.trim(), stateRegion: stateRegion.trim(), landmark: landmark.trim() };
+    await saveOnboardingLocation(data);
+    // ProfileData.location is a single free-text field (used across the
+    // app as "current area" — see useCurrentArea.ts) rather than
+    // structured fields, so compose a readable summary from what's here.
+    // Prefer city (the level everything else already displays at) with
+    // the street address as a fallback, so this never merges an empty
+    // string over whatever profile.location already held.
+    const summary = [data.city, data.stateRegion].filter(Boolean).join(', ') || data.address;
+    if (summary) {
+      await mergeProfile({ location: summary });
+    }
+  };
+
+  const onContinue = async () => {
+    await persist();
     router.push('/onboarding/emergency' as any);
   };
 
-  const onSkip = () => {
+  const onSkip = async () => {
+    await persist();
     router.push('/onboarding/emergency' as any);
   };
 

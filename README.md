@@ -1,8 +1,9 @@
 # ResQ
 
-A disaster-preparedness and community-safety mobile app: live local updates,
-incident reporting with AI-assisted guidance, a family safety circle, nearby
-safe places, and a conversational safety assistant.
+A disaster-preparedness and community-safety mobile app: an on-device SOS
+alert, live local updates, incident reporting with AI-assisted guidance, a
+family safety circle, nearby safe places, and a conversational safety
+assistant.
 
 Built with **Expo (React Native) + expo-router**, TypeScript throughout.
 
@@ -27,10 +28,27 @@ app/                      expo-router routes (file-based navigation)
   _layout.tsx              root stack: providers + navigator
   index.tsx                splash screen
   login.tsx                auth screen
+  register.tsx              sign up
+  forgot-password.tsx       locally-simulated password reset
+  onboarding/                five-step first-run flow, real per-step persistence (see below)
+    _layout.tsx
+    personal.tsx              name / phone / DOB / blood type
+    medical.tsx                allergies / conditions / accessibility
+    location.tsx               home address, device-location-assisted
+    family.tsx                 family circle members
+    emergency.tsx              emergency contacts — merges into the same circle as family.tsx (see Notable UX decisions)
   profile.tsx               profile (stack screen, hides tab bar)
   chat.tsx                  Ask ResQ assistant (stack screen, hides tab bar)
   readiness.tsx              readiness detail (opened from the Home hero card)
   guidance-result.tsx        post-report RAG guidance results
+  notifications.tsx          Header bell destination — local read/unread list
+  alert-preferences.tsx      notification category toggles
+  privacy-security.tsx       data export / account deletion (Play Store compliance)
+  family-member.tsx          person detail: Call / Message / Locate
+  place-detail.tsx           safe-place detail: Directions / Call ahead
+  update-detail.tsx          live-update detail
+  sos.tsx                    emergency SOS: press-and-hold trigger, tel:112 + SMS to contacts
+  sos-history.tsx            local log of past SOS activations (opened from Profile)
   (tabs)/                    primary tab navigator
     _layout.tsx
     index.tsx                 Home
@@ -42,11 +60,12 @@ app/                      expo-router routes (file-based navigation)
 src/
   components/               shared UI building blocks (Header, buttons, icons.ts, ...)
   theme/                    design tokens + ThemeContext (light/dark mode)
-  context/                  app-wide React context (tab bar visibility)
+  context/                  app-wide React context (auth, tab bar visibility)
   types/                    shared TypeScript types, including RAG-shaped types
   data/                     mock data, one file per domain (mockFamily.ts, mockGuidance.ts, ...)
   services/                 data-fetching layer — see "Architecture" below
   hooks/                    React hooks screens actually call (useUpdates, useChat, ...)
+  utils/                    small pure helpers (format.ts: greetings, dates, initials)
 
 assets/images/              app icon, splash, favicon — real brand mark, light/dark variants, no colored background
 assets/videos/               startup animation videos (light/dark mode)
@@ -71,6 +90,45 @@ This means:
   engineer only needs to learn it once.
 - UI/UX work (this session's task) and backend work can proceed in
   parallel — the seam between them is `src/services/`.
+
+Within the mock branch, "mock data" now means two different things
+depending on the domain: some services (guidance, chat's canned replies)
+return a static constant every time, while others that need to survive an
+app restart (family, profile, notifications, SOS history, onboarding
+drafts) read/write AsyncStorage, seeded from the static mock constant on
+first use. Either way the hook/screen layer sees the exact same shape —
+this is purely an implementation detail of the mock branch, not a change
+to the architecture above.
+
+### Onboarding persistence
+
+Every onboarding screen (`app/onboarding/*.tsx`) used to hold what the
+user typed in local `useState` only — finishing onboarding just flipped
+one boolean and every field was lost on the next launch. Each step now
+writes its own draft to AsyncStorage as the user continues (or skips —
+skipping means "don't require finishing this step," not "discard what's
+already there"), via `src/services/onboardingService.ts`, and reloads
+that draft on mount so returning to an earlier step pre-fills it.
+
+On completion, the collected drafts merge into the app's real,
+already-existing stores rather than a separate onboarding-only store:
+
+- `personal`/`medical`/`location` merge into `ProfileData`/`MedicalProfile`
+  (`profileService.mergeProfile()`).
+- `family` and `emergency` merge into one family circle
+  (`onboardingService.mergeOnboardingContacts()`, de-duplicated by phone)
+  and are written via `familyService.seedFamilyMembers()` — see "Notable
+  UX decisions" below for why there's one merged list instead of two.
+
+Building this also surfaced a pre-existing bug unrelated to onboarding
+itself: `familyService.ts` and `profileService.ts` only mutated in-memory
+React state, so adding a family member from the Family tab, or editing
+your profile, was silently lost on app restart. Both are now
+AsyncStorage-backed, seeded from their mock data once, matching the
+pattern already used by `notificationsService.ts`/`sosService.ts`.
+`AuthContext.logout()` clears the onboarding draft (not the profile or
+family circle themselves) so a different user on the same device doesn't
+inherit a half-finished draft.
 
 ### The switch: mock data vs. real backend
 
@@ -163,16 +221,60 @@ setting by default (`src/theme/ThemeContext.tsx`).
 - Submitting an incident report leads to **`/guidance-result`**, which
   fetches and displays disaster-specific guidance (with sources) for the
   hazards just reported, so reporting something also gets the user help.
+- **SOS requires a deliberate hold**, not a tap — a 2.5s press-and-hold with
+  live progress feedback, so a pocket-press can't fire it. It calls `tel:112`
+  (the user still has to confirm the call — no platform lets an app dial
+  without that) and opens one SMS share sheet per family member with a
+  phone number on file. `/sos-history` (linked from Profile) is a local-only
+  log of past activations, since there's no backend yet to sync it against.
+- **Onboarding's family circle and emergency-contacts steps write into one
+  shared list, not two.** There's no separate `EmergencyContact` type —
+  a contact entered in either step becomes a `FamilyMember` (optionally
+  flagged `isPrimaryEmergencyContact`), de-duplicated by phone if the same
+  person was entered in both steps. This keeps SOS's contact list and the
+  Family tab in sync by construction rather than needing to reconcile two
+  separate stores.
 
 ## Known limitations / next steps
 
 - **Auth is a stub.** `login.tsx` accepts any input and always succeeds;
   wire it to a real auth service and add the token-injection point noted
   in `src/services/apiClient.ts` (`Authorization` header comment).
-- **Location is not yet wired to `expo-location`.** `safePlacesService.ts`
-  accepts `latitude`/`longitude` but the Safe places screen doesn't request
-  device location yet — add an `expo-location` permission request and pass
-  the result into `useSafePlaces({ latitude, longitude })`.
-- **No test suite yet.** The service/hook split makes services easy to unit
-  test independent of React (mock `fetch`, assert on the mock/real switch)
-  — a good first testing target.
+- **No real map view yet.** `useDeviceLocation()` and real coordinates
+  exist end-to-end now (see "Device location" below), but Safe places and
+  place-detail still show a static pin illustration rather than an actual
+  map — the next natural step, now that there's something real to render.
+- **`FamilyMember.lastKnownLocation` is free text only** (no lat/long), so
+  "Locate" on `family-member.tsx` opens a name-based Maps search rather
+  than a coordinate-based one. This only matters once family members can
+  share live coordinates, which needs a backend to receive them (no such
+  backend exists yet).
+- **No formal test suite for services/hooks in isolation** — there is a
+  render-smoke suite (`npm run test:smoke`, `__tests__/smoke.test.tsx`)
+  that mounts every screen and waits out its mock data fetch, but the
+  service/hook split (easy to unit test independent of React — mock
+  `fetch`/`AsyncStorage`, assert on the mock/real switch) is still a good
+  first target for real unit tests.
+
+### Device location
+
+`src/hooks/useDeviceLocation.ts` wraps `expo-location` to get the user's
+live coordinates (`getCurrentPositionAsync`, with a best-effort reverse
+geocode). It's request-based rather than a continuous watcher — nothing in
+the app currently needs a live-moving position, just "where am I right
+now" at the moment a screen opens — with a `refresh()` function for
+re-fetching on demand.
+
+`useCurrentArea()` (used by Home, Family, Safe, Updates, Report, and SOS)
+now prefers this live location over the profile's static home address,
+falling back automatically while a fix is loading or if permission was
+denied — every screen that already called `useCurrentArea()` picked this
+up with no code changes. Two screens use the real coordinates directly:
+
+- **Safe places** queries `safePlacesService.ts` with live coordinates;
+  the mock branch sorts the fixed place list by real distance from the
+  user and updates each place's displayed distance to match.
+- **SOS** (`app/sos.tsx`) includes a real Google Maps link in the SMS sent
+  to family contacts and in the local SOS history log, when a fix is
+  available — falling back to the free-text area otherwise.
+

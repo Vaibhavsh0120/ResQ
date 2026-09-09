@@ -119,6 +119,8 @@ const dataScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/(tabs)/report.tsx', () => require('../app/(tabs)/report').default],
   ['app/profile.tsx', () => require('../app/profile').default],
   ['app/notifications.tsx', () => require('../app/notifications').default],
+  ['app/sos.tsx', () => require('../app/sos').default],
+  ['app/sos-history.tsx', () => require('../app/sos-history').default],
 ];
 
 // Screens that read an id from route params and look it up in loaded data —

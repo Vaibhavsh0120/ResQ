@@ -196,7 +196,7 @@ than a missing one.
   `mockSafePlaces.ts`'s "Riverside Community Hall" (a place's proper
   name) and `mockUpdates.ts`'s "Riverside district" mentions (content
   *about* a place in the feed, not the user's own location claim).
-- [ ] "Guides read" counter — **flagged in the original audit as not
+- [x] "Guides read" counter — **flagged in the original audit as not
   existing yet.** **2026-09-09**: Built it — `src/services/
   guidesReadService.ts`, a small AsyncStorage counter incremented once
   per guide actually viewed in `guidance-result.tsx` (guarded with a
@@ -206,26 +206,109 @@ than a missing one.
   to avoid inventing a new screen outside this session's scope.
 
 ### 2.4 The single biggest gap: SOS doesn't exist
-**Still true — not touched this session.** `app/onboarding/emergency.tsx`
+**Fixed 2026-09-09 (first Phase 1 slice).** `app/onboarding/emergency.tsx`
 and `app/onboarding/location.tsx` both explicitly promise SOS behavior in
 their copy — *"Designate contacts who will be immediately alerted with
 your live location when you initiate an SOS"*, *"Emergency services
 (911/112) will always be connected directly in an SOS"*, *"location data
-is encrypted... only broadcast during active SOS alerts."* **There is no
-SOS button, screen, or flow anywhere in the actual app.** This remains
-Phase 1's first, highest-priority item — see §3 Phase 1 and §7 below for
-where to pick this up.
+is encrypted... only broadcast during active SOS alerts."* A real SOS flow
+now exists: a prominent red **Emergency SOS** bar sits on Home above the
+readiness card (not buried in a menu or folded into the quick-actions
+grid), leading to `app/sos.tsx` — a full-screen press-and-hold trigger
+(2.5s, cancels cleanly on early release, haptic feedback via
+`expo-haptics`) that, once activated, surfaces a **Call 112** button
+(`tel:112` — India's unified emergency number, per this plan's launch-
+market assumption) and one **Message** button per family member who has a
+phone number on file (`sms:`, reusing the exact platform-separator pattern
+already built for `family-member.tsx`). Every activation is logged locally
+(`src/services/sosService.ts`, AsyncStorage-backed, same shape as
+`notificationsService.ts`) and viewable at `/sos-history` (linked from
+Profile's settings list, danger-tinted icon so it doesn't read as a routine
+row). Runs entirely against `useFamily()`'s existing mock data — no
+onboarding-persistence dependency, as this plan's §7 anticipated.
+Real `tsc --noEmit` (network was available this session, unlike prior
+sessions — see §2.8) and the full smoke suite both pass clean, including
+the two new screens added to `__tests__/smoke.test.tsx`.
+**Not yet done, deliberately scoped out of this slice:** No local
+push/alarm sound, no lock-screen or hardware-button trigger (e.g.
+power-button-5x), no server-side fan-out to responders — all of that
+needs Phase 3's backend. These are natural follow-ups, not oversights.
+(Originally this note also flagged that the SMS body sent only a static
+area, not live coordinates — **resolved 2026-09-09, see §2.9**: it now
+sends a real Maps link when a GPS fix is available.)
 
 ### 2.5 Onboarding is data-loss-by-design
-**Still true — not touched this session.** Every onboarding screen holds
-everything the user types in local `useState` only; none of it is
-persisted anywhere. Finishing onboarding only flips one boolean. This is
-Phase 1's second priority, right after SOS — see §7.
+**Fixed 2026-09-09.** Every onboarding screen used to hold everything the
+user typed in local `useState` only; finishing onboarding just flipped one
+boolean (`AuthContext.completeOnboarding`) and every field was lost. Real
+persistence now exists across all five steps:
+
+- **`src/services/onboardingService.ts`** (new) — AsyncStorage-backed
+  per-step drafts (personal/medical/location/family/emergency), written on
+  each step's Continue *and* Skip (skip means "don't require finishing
+  this step," not "discard what's already there"), and loaded back on
+  mount so returning to an earlier step pre-fills it. `MedicalProfile` and
+  `ProfileData.dob`/`bloodType` (§5) were added to give the personal and
+  medical steps somewhere real to write.
+- **Two pre-existing services turned out to not persist anything at
+  all**, discovered while wiring this up — not an onboarding-specific
+  bug, but a real gap affecting the live app too:
+  - `familyService.ts` read straight from the static `mockFamily.ts`
+    array; `inviteFamilyMember` only mutated `useFamily()`'s in-memory
+    React state, so a member added from the **Family tab** (not just
+    onboarding) vanished on app restart. Now AsyncStorage-backed,
+    seeded from `mockFamily.ts` once, same pattern as
+    `notificationsService.ts`.
+  - `profileService.ts`'s `updateProfile` just echoed back whatever was
+    passed in — an edit from `profile.tsx` was equally lost on restart.
+    Now AsyncStorage-backed, plus a new `mergeProfile()` for onboarding
+    steps that each only own a slice of the profile.
+- **Onboarding's family step and emergency-contacts step used to be two
+  separate, overlapping contact lists**, each with its own pre-seeded
+  fake person ("Maya Chen" appeared in *both*, "David Chen" only in the
+  second). Fixed by unifying them: no separate `EmergencyContact` type
+  was added (deliberately — see §6) — instead `FamilyMember` gained an
+  `isPrimaryEmergencyContact` flag, and
+  `onboardingService.mergeOnboardingContacts()` de-dupes a person entered
+  in both steps (matched by phone, falling back to name) before
+  `emergency.tsx`'s `handleFinish` writes the merged list into the real
+  family circle via a new `familyService.seedFamilyMembers()`. Both
+  pre-seeded fake people are gone; each step now starts empty with a
+  proper empty-state card and loads its own real draft.
+  `seedFamilyMembers()` replaces the untouched `mockFamily.ts` demo data
+  on a user's first real completion (tracked via a `SEEDED_KEY` flag so
+  this only happens once) rather than appending onboarding's contacts
+  onto the demo people — a user finishing onboarding sees their own
+  circle, not their circle mixed in with three people they never added.
+  If a user adds zero contacts across both steps, the demo circle is
+  left as-is (a reasonable fallback for a demo-data app, not an
+  oversight).
+- **`AuthContext.logout()`** now also clears the onboarding draft (not
+  the profile or family circle themselves — those follow the same
+  logout-doesn't-wipe-data behavior as everything else in this app),
+  so a different user logging in on the same device doesn't inherit a
+  previous session's half-finished answers.
+
+Verified: real `tsc --noEmit` and the full smoke suite (26/26, including
+all five onboarding screens with their new async load/save effects) both
+pass clean. The merge/de-dupe logic in `mergeOnboardingContacts()` was
+additionally checked with a throwaway Jest test (written, run, confirmed
+correct, then deleted — not part of the permanent suite).
+
+**Not yet done, deliberately scoped out of this pass:** nothing currently
+displays the medical profile back to the user post-onboarding (a natural
+Phase 1/5 follow-up — a "medical ID" card reachable from Profile or the
+SOS confirmed screen, similar to iOS/Android's own Medical ID feature).
+`profile.tsx`'s own edit screen doesn't yet surface `dob`/`bloodType`
+either — they're optional fields on `ProfileData` so nothing breaks by
+their absence, but a user can't currently review or change them after
+onboarding without those rows existing there.
 
 ### 2.6 Integrations installed but not actually wired
-**Still true — not touched this session.** No real device location hook,
-no map SDK, no `expo-notifications`, no crash reporting, no i18n, no
-`expo-secure-store`. All Phase 1/5 items, untouched this pass.
+**Partially resolved 2026-09-09 — see §2.9.** Real device location is now
+built and wired in. Still true and untouched this pass: no map SDK, no
+`expo-notifications`, no crash reporting, no i18n, no `expo-secure-store`.
+All remaining Phase 1/5 items.
 
 ### 2.7 Compliance / Play Store readiness gaps
 **Still true — not touched this session.** No in-app Privacy
@@ -258,6 +341,70 @@ placeholder icon/splash still shipped. This is Phase 2 in full — see §7.
   whenever the suite can actually run.
 - `config.useMockData` is one global flag for every domain — still true,
   still fine for now, still a flagged Phase 4 item.
+
+### 2.9 Real device location
+**Fixed 2026-09-09.** `useCurrentArea()` had shipped in an earlier session
+as a deliberate stopgap — its own doc comment said "once real GPS location
+exists, this is the natural place to prefer it." That gap is now closed:
+
+- **`src/hooks/useDeviceLocation.ts`** (new) — wraps `expo-location`'s
+  `requestForegroundPermissionsAsync` → `getCurrentPositionAsync` →
+  `reverseGeocodeAsync` sequence (the same one `app/onboarding/
+  location.tsx` already used for its one-time home-address snapshot),
+  returning live `latitude`/`longitude`/`accuracy` plus a best-effort
+  reverse-geocoded `area` string. Deliberately request-based
+  (`getCurrentPositionAsync`), not `watchPositionAsync` — nothing in the
+  app needs a continuously-updating position today (SOS/Safe places/Report
+  all want "where am I right now," not a moving dot); a `refresh()`
+  function is exposed for on-demand re-fetching instead. If a real
+  live-tracking feature needs a watcher later, that's a distinct hook
+  built on this one's permission handling, not a change to this hook's
+  contract. Permission is requested automatically on mount, since every
+  screen that will call this hook already needs location to do its job —
+  there's no separate "ask later" flow to design around.
+- **`useCurrentArea()` upgraded**, exactly as its own comment promised:
+  now prefers `useDeviceLocation()`'s live reverse-geocoded area, falling
+  back to the profile's static home address while a fix is still loading
+  or permission was denied. This is a strict upgrade with zero code
+  changes needed in the screens that only destructure `{ area }`
+  (`updates.tsx`, `family.tsx`) — `latitude`/`longitude` are additionally
+  exposed for screens that need real coordinates, not just a place name.
+- **`app/(tabs)/safe.tsx`** now passes real coordinates into
+  `useSafePlaces()`. **`safePlacesService.ts`**'s mock branch was extended
+  so this isn't wiring for its own sake: when coordinates are present, it
+  sorts `mockSafePlaces.ts`'s three entries by real great-circle distance
+  from the user and rewrites each place's leading "X mi ·" detail text to
+  match, instead of silently ignoring the query and always returning the
+  same static order. Falls back to the original static order when no fix
+  is available, exactly as before.
+- **`app/(tabs)/report.tsx`**'s location field now seeds from live GPS
+  when available (via `useCurrentArea()`) instead of only the profile's
+  home address — no code change was needed here beyond a stale comment
+  update, since it already only reads `area`.
+- **`app/sos.tsx`**: the SMS body sent to family members and the local SOS
+  history log now include a real Google Maps link
+  (`src/utils/location.ts`'s `mapsLinkForCoords()`) built from live
+  coordinates when a fix is available, falling back to the free-text area
+  string exactly as before when it isn't. This is the concrete fix for
+  onboarding's `emergency.tsx` copy — "Designate contacts who will be
+  immediately alerted with your live location" — which had been a promise
+  the app didn't yet keep.
+
+Verified: real `tsc --noEmit` and the full smoke suite (26/26, including
+`safe.tsx`, `report.tsx`, and `sos.tsx` with their new location-dependent
+code paths) both pass clean.
+
+**Not yet done, deliberately scoped out of this pass:** the map SDK
+decision itself (§7) — real coordinates now exist everywhere a map would
+need them, but no map view has been built. `FamilyMember.lastKnownLocation`
+is still free text only (no lat/long), so "Locate" on `family-member.tsx`
+still opens a name-based Maps search rather than a coordinate-based one —
+this only matters once family members can share live coordinates, which
+has no backend to receive them yet (Phase 3). `useDeviceLocation()`
+doesn't cache its last fix across screens/mounts (each screen using
+`useCurrentArea()` re-requests independently) — acceptable for now given
+how few screens use it, but worth a shared context/store if more screens
+adopt it.
 
 ---
 
@@ -312,22 +459,36 @@ whatever name the backend actually returns.
 end-to-end today, on-device, with no server. This is the functional heart
 of "ResQ" and none of it requires a backend to be real.*
 
-**Status: not started, except for two small pieces that came up
-naturally while doing Phase 0 work (checked off below with notes) —
-everything else in this phase, especially SOS and onboarding persistence,
-remains fully open and is the recommended next session's focus (§7).**
+**Status: SOS, onboarding persistence, and real device location — Phase
+1's top three priorities — are all now built and verified.** See §2.4/§2.5
+below for SOS/onboarding, and §2.9 (new) for device location. Real
+`tsc --noEmit` and the full smoke suite (26/26) pass clean as of
+2026-09-09 with all three in. Everything else in this phase is still open
+(§7) — **real maps is the natural next item**, since it now has real
+coordinates to render rather than needing to be built against nothing.
 
-- [ ] **Persist onboarding output.** Not started.
-- [ ] Remove pre-seeded fake people from onboarding. Not started.
-- [ ] **Build SOS.** Not started — this is the single most important
-  item in the whole roadmap. See §7.
-- [ ] **Real device location** via `useDeviceLocation()`. Not started.
-  Note: `useCurrentArea()` (added this session, §2.3) is a *stopgap*
-  reading the profile's static home address — it deliberately does NOT
-  replace this item; once real GPS location exists, `useCurrentArea()`
-  is the natural place to prefer it over the profile fallback (already
-  noted in that hook's own doc comment).
-- [ ] **Real maps** (`react-native-maps`). Not started.
+- [x] **Persist onboarding output.** **2026-09-09**: Built — see §2.5
+  below for the full writeup (per-step AsyncStorage drafts across all
+  five onboarding screens, merged into the real profile + family circle
+  on completion).
+- [x] Remove pre-seeded fake people from onboarding. **2026-09-09**: Done
+  as part of the same pass — see §2.5 and §4.3.
+- [x] **Build SOS.** **2026-09-09**: Built — see §2.4 above for the full
+  writeup (Home entry point, press-and-hold trigger, tel:112 + SMS to
+  contacts, local history log at `/sos-history`). This was the single
+  most important item in the whole roadmap.
+- [x] **Real device location** via `useDeviceLocation()`. **2026-09-09**:
+  Built — see §2.9 below for the full writeup (live GPS via
+  `expo-location`, wired into `useCurrentArea()`, Safe places, Report, and
+  SOS's SMS/history location).
+- [ ] **Real maps** (map SDK). Not started — SDK/scope decision made,
+  no code written yet. Real coordinates exist end-to-end today (device
+  location, safe places; family members not yet — see §5), so a map view
+  has something true to render instead of being built against placeholder
+  data. **SDK decided 2026-09-09 (planning session): MapLibre +
+  OpenFreeMap**, not react-native-maps — see §6/§7.1 for the full
+  rationale and §7.2 for exactly which screens get a map. Nothing
+  map-SDK-related is installed yet (see `package.json`).
 - [ ] **Camera capture** for incident reports. Not started.
 - [x] **New `app/notifications.tsx`** — a real destination for the
   Header bell. **2026-09-09**: Built ahead of schedule as part of
@@ -379,29 +540,32 @@ making the stack decision in §6.
 | `app/login.tsx` | Sign in | Forgot-password now real (local flow); Google button removed rather than left dishonest. Still needs: real validation before backend exists |
 | `app/register.tsx` | Sign up | Needs: real validation before backend exists (unchanged) |
 | `app/forgot-password.tsx` | **New 2026-09-09.** Locally-simulated password reset | Solid for a no-backend stage; swap the request call once real auth exists |
-| `app/onboarding/personal.tsx` | Name/phone/DOB/blood type | Needs: persistence (Phase 1) — unchanged |
-| `app/onboarding/medical.tsx` | Allergies/conditions/accessibility | Needs: persistence (Phase 1) — unchanged |
-| `app/onboarding/family.tsx` | Family members | Needs: persistence, remove fake pre-seed (Phase 1) — unchanged |
-| `app/onboarding/location.tsx` | Home address + device location | Needs: persistence (Phase 1) — unchanged |
-| `app/onboarding/emergency.tsx` | Emergency contacts | Needs: persistence, remove fake pre-seed (Phase 1) — unchanged |
-| `app/(tabs)/index.tsx` | Home | Real greeting/date/counts done. Still needs: SOS entry point (Phase 1) |
+| `app/onboarding/personal.tsx` | Name/phone/DOB/blood type | Real persistence done (2026-09-09) — draft + merges into `mergeProfile()` |
+| `app/onboarding/medical.tsx` | Allergies/conditions/accessibility | Real persistence done (2026-09-09). Still needs: a screen that shows this back to the user post-onboarding (Phase 1/5) |
+| `app/onboarding/family.tsx` | Family members | Real persistence done, fake pre-seed removed (2026-09-09) — see §2.5 |
+| `app/onboarding/location.tsx` | Home address + device location | Real persistence done (2026-09-09) — composes into `ProfileData.location`. Deliberately still a one-time snapshot, not live tracking — that's correct for a home-address field. Real live location now exists elsewhere in the app via `useDeviceLocation()`/`useCurrentArea()` (§2.9) |
+| `app/onboarding/emergency.tsx` | Emergency contacts | Real persistence done, fake pre-seed removed, merged with family.tsx's list into the real circle (2026-09-09) — see §2.5 |
+| `app/(tabs)/index.tsx` | Home | Real greeting/date/counts done. SOS entry point done (2026-09-09) |
 | `app/(tabs)/updates.tsx` | Live updates | Real area source done |
-| `app/(tabs)/report.tsx` | Incident report | Real name + location-seed done. Still needs: camera, real device location (Phase 1) |
-| `app/(tabs)/family.tsx` | Family circle | Real invite form done. Still needs: real backend-side accept/decline flow (Phase 3) |
-| `app/(tabs)/safe.tsx` | Safe places | Area seed done. Still needs: real map, real location (Phase 1) |
+| `app/(tabs)/report.tsx` | Incident report | Real name + location-seed done. **2026-09-09**: location field now seeds from live device GPS when available (§2.9), not just the profile home address. Still needs: camera (Phase 1) |
+| `app/(tabs)/family.tsx` | Family circle | Real invite form done. **2026-09-09**: now actually persists (`familyService.ts` was previously in-memory-only — see §2.5). Still needs: real backend-side accept/decline flow (Phase 3) |
+| `app/(tabs)/safe.tsx` | Safe places | Area seed done. **2026-09-09**: now queries with real device coordinates when available, and the mock service sorts by real distance (§2.9). Still needs: a real map view (Phase 1) |
 | `app/chat.tsx` | Ask ResQ assistant | Real history switching done. Still needs: sources UI (Phase 1) |
 | `app/readiness.tsx` | Readiness detail | Tappable checklist done |
 | `app/guidance-result.tsx` | Post-report guidance | Solid, keep as reference pattern for sources UI. Now also increments the guides-read counter |
 | `app/family-member.tsx` | Person detail | Working Call/Message/Locate done |
 | `app/place-detail.tsx` | Place detail | Working Directions/Call done |
 | `app/update-detail.tsx` | Update detail | Not yet audited in depth — re-check for dead links/hardcoding when picked up |
-| `app/profile.tsx` | Profile & settings | Real name/stats done. Still needs: account deletion/export (Phase 0/2) |
+| `app/profile.tsx` | Profile & settings | Real name/stats done. **2026-09-09**: edits now actually persist (`profileService.ts` was previously in-memory-only — see §2.5). Still needs: surfacing the new `dob`/`bloodType` fields in this screen's own edit form (account export/deletion live on `privacy-security.tsx`, not here — already working, see that row below) |
 | `app/alert-preferences.tsx` | Notification categories | Needs: persistence, actually gate real notifications (Phase 1) — unchanged |
 | `app/privacy-security.tsx` | Privacy settings | Working data export/deletion done |
 | `app/notifications.tsx` | **New 2026-09-09.** Alerts/updates/family check-ins list | Local storage only (no push yet — Phase 1/3), but a real, working destination |
+| `app/sos.tsx` | **New 2026-09-09.** Emergency SOS: press-and-hold trigger, tel:112 + SMS to contacts | Working, local-only logging. **2026-09-09**: SMS body and history log now include a real Maps link from live GPS when available (§2.9). Still needs: push/alarm, hardware-button trigger (Phase 1/5) |
+| `app/sos-history.tsx` | **New 2026-09-09.** Local log of past SOS activations, linked from Profile | Local storage only, real working destination |
 
 ### 4.2 Missing screens to add
-- [ ] SOS flow (new screen or Home-embedded control) — Phase 1, not started
+- [x] SOS flow (Home-embedded entry point + `app/sos.tsx`) — **Done
+  2026-09-09**, see §2.4/§3 Phase 1 above
 - [x] `app/notifications.tsx` — **Done 2026-09-09**, see above
 - [ ] `app/privacy-policy.tsx`, `app/terms.tsx` — Phase 2, not started
 - [x] `app/forgot-password.tsx` — **Done 2026-09-09**, see above
@@ -409,7 +573,10 @@ making the stack decision in §6.
 - [ ] Internal moderation/verification tool — Phase 3, not started
 
 ### 4.3 To remove or replace, not just leave as-is
-- Pre-seeded fake contacts in onboarding — **still present, not touched**
+- Pre-seeded fake contacts in onboarding — **removed 2026-09-09** (§2.5):
+  `family.tsx`'s "Maya Chen" and `emergency.tsx`'s "Maya Chen"/"David
+  Chen" are gone; both steps now start empty with a real empty-state card
+  and load an actual saved draft instead
 - The "Continue with Google" button — **removed 2026-09-09** (§2.2)
 - The static fake-pin "map" illustration on `safe.tsx`/`place-detail.tsx`
   — still present, unchanged (waiting on Phase 1's real map decision)
@@ -427,27 +594,92 @@ making the stack decision in §6.
   notifications screen)
 - [x] `ChatThread` (= `ChatThreadSummary` + `messages`) — **added
   2026-09-09** for chat history switching
-- [ ] `EmergencyContact` — not started (Phase 1, onboarding persistence)
-- [ ] `MedicalProfile` — not started (Phase 1, onboarding persistence)
-- [ ] Extend `ProfileData` with dob/bloodType/structured address — not
-  started (Phase 1)
+- [x] `EmergencyContact` — **resolved 2026-09-09 without adding this
+  type** — see §2.5/§6: emergency contacts are unified into `FamilyMember`
+  (new `isPrimaryEmergencyContact` flag) rather than a separate parallel
+  list, so SOS has one contact source instead of two to reconcile
+- [x] `MedicalProfile` — **added 2026-09-09** (allergies, conditions,
+  usesMobilityAid, hasVisualImpairment, hasHearingImpairment) — see §2.5
+- [x] Extend `ProfileData` with dob/bloodType — **added 2026-09-09**
+  (both optional free-text fields, populated by onboarding's personal
+  step). Structured address was *not* added — `ProfileData.location`
+  stays a single free-text field, same as it already was, since
+  `useCurrentArea()` and every screen that reads it already expect a
+  plain string; onboarding's location step composes a `city, state`
+  summary into it rather than the raw structured fields it collects
 - [ ] Extend `FamilyMember` with `inviteStatus` ('pending' | 'accepted')
   — not started; note that `inviteFamilyMember` already sets
   `status: 'Invite sent'` on creation, which is a reasonable stand-in
   today, but a proper typed `inviteStatus` field is still the Phase 1
   item as originally scoped
-- [ ] `SosEvent` — not started (Phase 1, depends on SOS existing first)
+- [x] `SosEvent` — **added 2026-09-09** (id, triggeredAt,
+  calledEmergencyNumber, contactsNotified, location) alongside SOS itself
+- [ ] Extend `FamilyMember` with optional `latitude`/`longitude` —
+  **planned, not yet built** (2026-09-09 planning session, see §7.2/§7.3).
+  Needed before `family-member.tsx` can show a real mini-map instead of
+  the name-based Maps-search fallback it has today. Open question for the
+  implementation session: whether `mockFamily.ts` gets seeded with real
+  coordinates (matching `mockSafePlaces.ts`'s pattern) or the map only
+  renders once a member actually has one on file — no backend exists yet
+  for a family member's own device to report a real position, so this is
+  a real design call, not an obvious default.
 
 ---
 
 ## 6. Decisions log — flagged, not yet made
 
-No new decisions were made this session — this was pure Phase 0
-execution, not a planning pass, so all four flagged decisions (backend
-stack, minimum age/parental consent, maps SDK vs Linking-only, guest
-mode's SOS scope) remain exactly as the original plan left them. See the
-original item list further down this file for the full tradeoff writeup
-on each.
+Three of the four originally-flagged decisions (backend stack, minimum
+age/parental consent, maps SDK vs Linking-only) remain exactly as the
+original plan left them — see the original item list further down this
+file for the full tradeoff writeup on each. The fourth, **guest mode's SOS
+scope**, is effectively resolved by existing architecture rather than a
+new choice made this session: `app/sos.tsx` sits in the same
+`Stack.Protected` group as the rest of the authenticated tabs (see
+`app/_layout.tsx`), and guest sessions (`loginAsGuest()`) already land in
+that same group — so guests get full SOS access, same as a registered
+user. This wasn't a deliberate SOS-specific decision so much as SOS simply
+inheriting the app's existing "Emergency App Access" guest design, which
+already exists specifically to make emergency-relevant screens reachable
+without credentials. Flagging here in case a future session wants to
+narrow this (e.g. hide the local SOS *history* log for guests, since it's
+tied to on-device storage that a guest session may not expect to persist)
+rather than leaving it as an unexamined side effect.
+
+**New decision made this session: no separate `EmergencyContact` type.**
+The original data-model list (§5) called for adding `EmergencyContact`
+alongside persisting onboarding output. Building it revealed the two
+existing onboarding steps — family circle and emergency contacts — kept
+two independent, overlapping lists (see §2.5), and SOS only ever messages
+`useFamily()`'s list, not a separate emergency-contacts list. Adding
+`EmergencyContact` as its own type would have created a second contact
+list for the app to keep in sync with the first, with no clear owner of
+"the real list SOS uses." Instead, `FamilyMember` gained a single
+`isPrimaryEmergencyContact: boolean` flag, and the two onboarding steps
+now write into one merged, de-duplicated circle
+(`onboardingService.mergeOnboardingContacts()`). Tradeoff: this assumes
+every emergency contact is conceptually part of the family circle, which
+holds for this app's scope (a physician or neighbor still gets a
+`relation` label and a `FamilyMember` row) but would need revisiting if a
+future feature wanted emergency contacts who explicitly aren't part of
+the family/check-in system.
+
+**New decision made 2026-09-09 (planning only, no code yet): map SDK is
+MapLibre + OpenFreeMap, not react-native-maps.** User's stated priorities,
+in order: free with no API key, one-time native setup, looks good on both
+Android and iOS, web support is a nice-to-have but not required. This
+resolves the maps-SDK-vs-Linking-only item the original plan left open —
+see §7.1 below for the full rationale (a real build was explored this far
+in an earlier session's chat history but never committed to code; this is
+the first time the decision itself has been written down in this file).
+
+**New decision made 2026-09-09 (planning only): map placement is
+accessibility-driven, not a fixed list.** Rather than restricting maps to
+Safe places alone, the user asked for a mini-map wherever it's a genuine
+usability win — explicitly naming family-member location as an example.
+§7.2 below lists every screen with a real coordinate today and the
+per-screen call on whether a map belongs there, so this stays a
+deliberate, reviewed set of additions rather than maps creeping onto
+every screen that happens to have a lat/long.
 
 One small implementation note worth flagging here even though it's not
 a full "decision": `readinessService.ts`'s new `toggleReadinessItem`
@@ -462,33 +694,142 @@ than the disconnected hardcoded 82% that was there before.
 
 ## 7. Where to start next session
 
-**Phase 0 is now fully complete** (as of the 2026-09-09 session's second
-pass — see §3 Phase 0's status line). The clear next step is **Phase 1,
-starting with SOS**:
+**Phase 0 is complete. SOS and onboarding persistence — Phase 1's top two
+priorities — are both now built, verified, documented, and packaged**
+(2026-09-09; see §2.4 for SOS and §2.5 for onboarding persistence,
+including a pre-existing family/profile persistence bug that got fixed
+along the way, and §6 for the decision to unify emergency contacts into
+the family circle instead of adding a separate `EmergencyContact` type).
+Real `tsc --noEmit` and the full smoke suite (26/26) both pass clean with
+everything included — re-verified in this pass, not just carried forward
+from the prior session's notes. README.md's project structure, page list,
+and architecture notes have also been brought current with every route
+and service added across Phase 0 and Phase 1-so-far (see README's
+"Project structure" and "Architecture" sections).
 
-This is the single highest-priority item in the entire roadmap — an app
-called ResQ currently has no SOS flow, despite onboarding copy promising
-one. Suggested first slice:
-- A visible, unmissable entry point on Home (not buried in a menu).
-- A deliberate-trigger interaction (press-and-hold or
-  confirm-then-cancel-window) to prevent accidental activation.
-- `Linking.openURL('tel:112')` (India's unified emergency number)
-  plus a pre-filled SMS/share-sheet message to emergency contacts
-  with a phone number — both work with zero backend, and
-  `family-member.tsx`'s `sms:` pattern (built in an earlier this-session
-  pass) is a direct template to reuse.
-- A local SOS history log, surfaced in Profile.
-- This item depends conceptually on onboarding persistence (Phase 1's
-  second item) for *real* emergency contacts to notify, but can be
-  built and demoed against `mockFamily.ts`'s data in the meantime —
-  don't block starting SOS on onboarding persistence being done
-  first; they can proceed in parallel or either order.
+**Real device location is now also built** — see §2.9 for the full
+writeup. `useDeviceLocation()` exists, `useCurrentArea()` prefers it over
+the profile fallback exactly as previously planned, and Safe places,
+Report, and SOS all consume real coordinates now. Re-verified with real
+`tsc --noEmit` and the full 26/26 smoke suite after every change in this
+pass, including the final `safePlacesService.ts` distance-sort addition.
 
-If a smaller warm-up ticket is preferred before tackling SOS, Phase 1's
-"Chat sources parity" item (§3 Phase 1) is the smallest remaining
-self-contained piece — `chat.tsx` still doesn't render
+**The next step is real maps — SDK and scope are now decided (2026-09-09,
+planning session, no code written yet).** This was deliberately sequenced
+after device location because a map is only meaningful once there are
+real coordinates to put on it — that's now true everywhere it matters.
+
+### 7.1 SDK decision: MapLibre + OpenFreeMap
+
+Chosen over `react-native-maps` based on explicit priorities from the
+user, in order: free with no API key required, one-time native setup,
+looks good on both Android and iOS, web support is a nice-to-have but not
+a requirement.
+
+- `react-native-maps` defaults to Apple Maps on iOS (free, zero config)
+  but defaults to Google Maps on Android, which needs a Google Maps API
+  key or the map silently renders blank — that's a real setup step, not
+  one-time-and-done, and this project doesn't have a key today. A prior
+  exploratory pass (visible in this project's chat history, never
+  committed to code) also looked at pointing `react-native-maps` at raw
+  OpenStreetMap tiles via `UrlTile` to dodge the key — react-native-maps'
+  own docs explicitly warn this "does not work on Android with URLTile
+  and is not recommended for iOS either for other than small-scale test
+  use," so that path is out.
+- **MapLibre (`@maplibre/maplibre-react-native`) + OpenFreeMap
+  (`https://tiles.openfreemap.org/styles/liberty` style URL)** has no API
+  key on either platform, no registration, and OpenFreeMap states no
+  rate limits by design and positions itself as production-appropriate
+  (it's been MapHub's production basemap since 2024) — not a demo-only
+  tile source like MapLibre's own default demo tiles, which its docs say
+  are explicitly dev-only. (Worth a quick re-check of the style URL and
+  OpenFreeMap's current terms at the start of the implementation session
+  — this is carried over from an earlier exploration, not re-verified in
+  this planning pass.)
+- **Setup cost is genuinely one-time**: an Expo config-plugin entry in
+  `app.json`'s `plugins` array (no key to manage) plus a dev-client
+  rebuild. That rebuild is required either way — `react-native-maps`
+  needs the exact same dev-client step, so MapLibre isn't trading away
+  the "one-time setup" goal to get "free."
+- **Web is out of scope, honestly.** Neither library has real web
+  support. Confirmed for MapLibre specifically: real cross-platform setups
+  use `@maplibre/maplibre-react-native` for native and a completely
+  separate library (`react-map-gl` + `maplibre-gl-js`) for web — genuine
+  added complexity, not a config flag. Given the user said web is a
+  nice-to-have and explicitly not worth extra effort ("if not then no
+  worries"), web keeps the existing static pin illustration / "Open in
+  Maps" link fallback (`Platform.OS === 'web'` guard, matching the app's
+  existing platform-conditional idiom — e.g. the SMS separator in
+  `family-member.tsx`/`sos.tsx`). This is a deliberate scope line, not an
+  oversight: taking on a second web map stack isn't worth it for a
+  "nice-to-have."
+- Package versions were not pinned during this planning pass — install
+  with `npx expo install @maplibre/maplibre-react-native` when
+  implementation starts, not a guessed version number, since Expo-SDK
+  compatibility for native map libraries has been a real source of
+  friction historically (this was true for react-native-maps on recent
+  Expo SDKs too, per the same earlier exploration).
+
+### 7.2 Where maps actually go
+
+Per-screen review of every place a real coordinate exists today, since
+the ask was "add mini-maps where they're a genuine accessibility/
+usability win," not "everywhere there's a lat/long":
+
+| Screen | Has real coords today? | Map? | Why |
+|---|---|---|---|
+| `app/(tabs)/safe.tsx` | Yes — device location + `mockSafePlaces` lat/long | **Yes** | Literally has a fake-pin illustration standing in for a map today (§4.3) — the clearest case there is |
+| `app/place-detail.tsx` | Yes — `SafePlace.latitude/longitude` | **Yes** | Same fake-pin placeholder exists here too; a mini-map showing the one place is a natural, small addition, and `onDirections` already computes the exact same coordinates this would need |
+| `app/family-member.tsx` | **Not yet** — `FamilyMember.lastKnownLocation` is free text only, no lat/long | **Yes, but needs a data-model step first** | Explicitly named by the user as an example of where this is a good idea. `FamilyMember` needs optional `latitude`/`longitude` added (§5) before a real mini-map can render here — until then this screen can only show a map if/when a coordinate exists, which today it doesn't (mock data would need seeding, see §7.3 open question) |
+| `app/sos.tsx` (confirmed screen) | Yes — via `useCurrentArea()`'s `latitude`/`longitude` (§2.9) | **Consider** | Showing the user's own location on a small map at the moment SOS fires could reinforce "this is what we're sending" — worth a look, not mandatory for v1 of this feature |
+| `app/(tabs)/report.tsx` | Yes — via `useCurrentArea()` | **No** | The location field here is an editable text field the user can override; a map doesn't add clarity to a free-text input the way it does to a fixed point (a safe place or a person) |
+| `app/(tabs)/updates.tsx`, `app/(tabs)/family.tsx` | Only the free-text `area` string, no coordinates | **No** | Nothing to plot — these screens don't have a specific point, just a district name |
+
+Net: build one reusable `MiniMap` component (native MapLibre view + web
+fallback), then place it in `safe.tsx`, `place-detail.tsx`, and
+`family-member.tsx` — with `sos.tsx`'s confirmed screen as a stretch
+addition once the base component exists, since it reuses the exact same
+component with the user's own coordinates instead of a place's.
+
+### 7.3 Sequencing and open items for the implementation session
+
+1. `npx expo install @maplibre/maplibre-react-native`; add the config
+   plugin to `app.json` (no key needed — see 7.1).
+2. Build a small reusable `MiniMap` component: takes `latitude`/
+   `longitude`, optional `title`/pin color, renders real MapLibre +
+   OpenFreeMap style on iOS/Android, and the existing static pin
+   illustration (or an "Open in Maps" link) on web via a `Platform.OS`
+   guard — matching this app's existing honest-about-limitations style
+   (e.g. `useCurrentArea()`'s own stopgap comments, SOS's "user still has
+   to confirm the call" note).
+3. Wire `MiniMap` into `safe.tsx` (replacing the fake-pin card) and
+   `place-detail.tsx` (replacing its fake-pin preview).
+4. **Data-model step required before family-member gets a map**: add
+   optional `latitude`/`longitude` to `FamilyMember` (§5), decide whether
+   `mockFamily.ts` gets seeded with real coordinates (same spirit as
+   `mockSafePlaces.ts`'s real Delhi-area coordinates) or whether the map
+   only appears once a member actually has coordinates on file — this is
+   a real design call for that session, not an obvious default, given
+   there's no backend yet for a family member's *own* device to report
+   their real position.
+5. New native module → this needs an explicit Jest mock in
+   `__tests__/smoke.test.tsx` (same pattern as the existing `expo-video`/
+   `expo-blur` mocks) before `safe.tsx`/`place-detail.tsx`/
+   `family-member.tsx`'s smoke tests will pass again — budget time for
+   this, it's not optional.
+6. Requires a dev-client rebuild to actually see it render on a real
+   device/simulator — won't work in plain Expo Go. Flag this to the user
+   before starting, since it changes their local dev workflow.
+
+Other Phase 1 items still open, roughly in priority order after maps:
+camera capture for incident reports, local notifications
+(`expo-notifications`), a medical-ID display surface for the
+`MedicalProfile` data onboarding now collects but nothing yet shows back
+to the user (§2.5), surfacing `dob`/`bloodType` in `profile.tsx`'s own
+edit screen, and chat sources parity (`chat.tsx` still doesn't render
 `ChatMessage.sources` even though `guidance-result.tsx` already has the
-exact pattern to copy.
+exact pattern to copy — this remains the smallest self-contained warm-up
+ticket if one is wanted before maps).
 
 ---
 

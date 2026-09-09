@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   Info,
+  LifeBuoy,
   LockKeyhole,
   LogIn,
   MapPin,
@@ -143,6 +144,14 @@ export default function Profile() {
           />
           <SettingsRow icon={<Bell size={18} color={colors.foreground} />} title="Notifications" subtitle="Alerts and check-in reminders" trailing={<Toggle on />} onPress={() => router.push('/alert-preferences')} />
           <SettingsRow
+            icon={<LifeBuoy size={18} color={colors.danger} />}
+            iconBg={colors.dangerSoft}
+            title="SOS history"
+            subtitle="Your past emergency activations"
+            trailing={<ChevronRight size={17} color={colors.inkMuted} />}
+            onPress={() => router.push('/sos-history')}
+          />
+          <SettingsRow
             icon={<LockKeyhole size={18} color={colors.foreground} />}
             title="Privacy & security"
             subtitle="Your data, your control"
@@ -234,17 +243,20 @@ function SettingsRow({
   subtitle,
   trailing,
   onPress,
+  iconBg,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
   trailing: React.ReactNode;
   onPress?: () => void;
+  /** Overrides the default brandSoft icon-well background — used by rows like SOS history that need to read as distinct (danger tint) rather than routine. */
+  iconBg?: string;
 }) {
   const { colors } = useAppTheme();
   return (
     <Pressable onPress={onPress} style={[styles.settingsRow, { borderColor: colors.line, backgroundColor: colors.surface }]}>
-      <View style={[styles.rowIcon, { backgroundColor: colors.brandSoft }]}>{icon}</View>
+      <View style={[styles.rowIcon, { backgroundColor: iconBg ?? colors.brandSoft }]}>{icon}</View>
       <View style={styles.flex}>
         <Text style={[styles.settingsTitle, { color: colors.foreground }]}>{title}</Text>
         <Text style={[styles.settingsSubtitle, { color: colors.inkMuted }]}>{subtitle}</Text>

@@ -17,8 +17,13 @@ import { useCurrentArea } from '@/hooks/useCurrentArea';
 // every other root-level tab screen.
 export default function Safe() {
   const { colors } = useAppTheme();
-  const { data: places, loading, error, refresh } = useSafePlaces();
-  const { area } = useCurrentArea();
+  const { area, latitude, longitude } = useCurrentArea();
+  // Real device coordinates now flow into the query once a GPS fix is
+  // available (PROGRESS.md Phase 1's useDeviceLocation) — mockSafePlaces.ts
+  // already has real Delhi-area coordinates, and safePlacesService.ts now
+  // sorts by actual distance from the user when coordinates are present,
+  // so "nearby" is real rather than a fixed static order.
+  const { data: places, loading, error, refresh } = useSafePlaces({ latitude: latitude ?? undefined, longitude: longitude ?? undefined });
   // Seeded from the user's profile area (single source of truth — see
   // PROGRESS.md Phase 0), but kept as local state so a search here can be
   // overridden per-session without touching the saved profile.

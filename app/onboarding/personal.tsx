@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { useAuth } from '@/context/AuthContext';
+import { getOnboardingPersonal, saveOnboardingPersonal } from '@/services/onboardingService';
+import { mergeProfile } from '@/services/profileService';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -17,11 +19,42 @@ export default function PersonalStep() {
   const [dob, setDob] = useState('');
   const [selectedBlood, setSelectedBlood] = useState('');
 
-  const onContinue = () => {
+  // Pre-fill from a previously-saved draft, if the user is returning to
+  // this step (e.g. backed up from a later step, or resumed after quitting
+  // onboarding partway through — see PROGRESS.md §2.5).
+  useEffect(() => {
+    getOnboardingPersonal().then((saved) => {
+      if (!saved) return;
+      if (saved.fullName) setFullName(saved.fullName);
+      if (saved.phone) setPhone(saved.phone);
+      if (saved.dob) setDob(saved.dob);
+      if (saved.bloodType) setSelectedBlood(saved.bloodType);
+    });
+  }, []);
+
+  const persist = async () => {
+    await saveOnboardingPersonal({ fullName: fullName.trim(), phone: phone.trim(), dob: dob.trim(), bloodType: selectedBlood });
+    // Also merge into the real profile immediately, not just the
+    // onboarding draft — so name/phone/dob/bloodType are genuinely usable
+    // (e.g. by Profile) even if the user quits before finishing the rest
+    // of onboarding.
+    await mergeProfile({
+      ...(fullName.trim() ? { name: fullName.trim() } : {}),
+      ...(phone.trim() ? { phone: phone.trim() } : {}),
+      ...(dob.trim() ? { dob: dob.trim() } : {}),
+      ...(selectedBlood ? { bloodType: selectedBlood } : {}),
+    });
+  };
+
+  const onContinue = async () => {
+    await persist();
     router.push('/onboarding/medical' as any);
   };
 
-  const onSkip = () => {
+  const onSkip = async () => {
+    // Skip still saves whatever was actually filled in — "skip" means
+    // "don't require completing this step," not "discard what's there."
+    await persist();
     router.push('/onboarding/medical' as any);
   };
 

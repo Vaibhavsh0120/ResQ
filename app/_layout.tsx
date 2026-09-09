@@ -84,6 +84,12 @@ function RootStack() {
           <Stack.Screen name="alert-preferences" />
           <Stack.Screen name="privacy-security" />
           <Stack.Screen name="notifications" />
+          {/* SOS opens full-screen from Home's SOS entry point — modal-style
+              presentation matches the urgency (it isn't just another drill-in
+              detail screen) and skips the usual slide-from-right animation
+              so it feels immediate. */}
+          <Stack.Screen name="sos" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
+          <Stack.Screen name="sos-history" />
         </Stack.Protected>
       </Stack>
     </>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/theme/ThemeContext';
@@ -6,6 +6,14 @@ import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { useAuth } from '@/context/AuthContext';
 import { Check, Phone, Plus, ShieldCheck, Users, X } from '@/components/icons';
+import {
+  clearOnboardingDraft,
+  getOnboardingEmergencyDraft,
+  getOnboardingFamilyDraft,
+  mergeOnboardingContacts,
+  saveOnboardingEmergencyDraft,
+} from '@/services/onboardingService';
+import { seedFamilyMembers } from '@/services/familyService';
 
 type Contact = {
   id: string;
@@ -19,15 +27,23 @@ export default function EmergencyStep() {
   const { colors } = useAppTheme();
   const { completeOnboarding } = useAuth();
 
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: '1', name: 'Maya Chen', relation: 'Spouse', phone: '+1 (555) 234-5678', isPrimary: true },
-    { id: '2', name: 'David Chen', relation: 'Brother', phone: '+1 (555) 876-5432', isPrimary: false },
-  ]);
+  // Starts empty — this used to pre-seed two fake contacts ("Maya Chen",
+  // "David Chen"), which along with family.tsx's own fake seed meant two
+  // separate lists both claimed the same made-up person (see PROGRESS.md
+  // §4.3). A real draft, loaded below, pre-fills this now instead.
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('Emergency Contact');
   const [phone, setPhone] = useState('');
+  const [finishing, setFinishing] = useState(false);
+
+  useEffect(() => {
+    getOnboardingEmergencyDraft().then((saved) => {
+      if (saved) setContacts(saved);
+    });
+  }, []);
 
   const togglePrimary = (id: string) => {
     setContacts((prev) =>
@@ -57,8 +73,30 @@ export default function EmergencyStep() {
   };
 
   const handleFinish = async () => {
-    await completeOnboarding();
-    router.replace('/(tabs)');
+    if (finishing) return;
+    setFinishing(true);
+    try {
+      await saveOnboardingEmergencyDraft(contacts);
+      // Merge this step's contacts with whatever family.tsx's step
+      // collected (a person mentioned in both isn't duplicated — see
+      // onboardingService.mergeOnboardingContacts) and write the result
+      // into the real family circle that useFamily()/SOS actually reads,
+      // in one shot, now that onboarding is actually finishing.
+      const familyDraft = await getOnboardingFamilyDraft();
+      const merged = mergeOnboardingContacts(familyDraft ?? [], contacts);
+      if (merged.length > 0) {
+        await seedFamilyMembers(merged);
+      }
+      // The per-step drafts (personal/medical/location/family/emergency)
+      // have now all been folded into the real profile + family-circle
+      // stores — clear them so a later re-run of onboarding (e.g. after
+      // logout/login) starts from a clean slate instead of an old draft.
+      await clearOnboardingDraft();
+      await completeOnboarding();
+      router.replace('/(tabs)');
+    } finally {
+      setFinishing(false);
+    }
   };
 
   return (
@@ -76,6 +114,16 @@ export default function EmergencyStep() {
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
           Selected emergency contacts ({contacts.length})
         </Text>
+
+        {contacts.length === 0 && (
+          <View style={[styles.emptyCard, { backgroundColor: colors.surfaceSoft, borderColor: colors.line }]}>
+            <Users size={28} color={colors.inkFaint} />
+            <Text style={[styles.emptyText, { color: colors.inkMuted }]}>
+              No emergency contacts yet. Add one below, or skip — {'\n'}
+              112 will still be called directly during an SOS either way.
+            </Text>
+          </View>
+        )}
 
         {contacts.map((contact) => (
           <Pressable
@@ -234,6 +282,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  emptyCard: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   contactCard: {
     flexDirection: 'row',

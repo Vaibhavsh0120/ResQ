@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { Plus, Users, X } from '@/components/icons';
+import { getOnboardingFamilyDraft, saveOnboardingFamilyDraft } from '@/services/onboardingService';
 
-type FamilyMember = {
+type FamilyMemberDraft = {
   id: string;
   name: string;
   relation: string;
@@ -18,13 +19,21 @@ const RELATIONS = ['Parent', 'Spouse', 'Child', 'Sibling', 'Partner', 'Friend', 
 export default function FamilyStep() {
   const { colors } = useAppTheme();
 
-  const [members, setMembers] = useState<FamilyMember[]>([
-    { id: '1', name: 'Maya Chen', relation: 'Spouse', phone: '+1 (555) 234-5678' },
-  ]);
+  // Starts empty — this used to pre-seed a fake "Maya Chen" entry, which
+  // meant every new user's family circle looked already-populated with a
+  // person they never added (see PROGRESS.md §4.3). A real draft, loaded
+  // below, is what should pre-fill this now.
+  const [members, setMembers] = useState<FamilyMemberDraft[]>([]);
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('Parent');
   const [phone, setPhone] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    getOnboardingFamilyDraft().then((saved) => {
+      if (saved) setMembers(saved);
+    });
+  }, []);
 
   const addMember = () => {
     if (!name.trim()) return;
@@ -46,11 +55,13 @@ export default function FamilyStep() {
     setMembers((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const onContinue = () => {
+  const onContinue = async () => {
+    await saveOnboardingFamilyDraft(members);
     router.push('/onboarding/location' as any);
   };
 
-  const onSkip = () => {
+  const onSkip = async () => {
+    await saveOnboardingFamilyDraft(members);
     router.push('/onboarding/location' as any);
   };
 

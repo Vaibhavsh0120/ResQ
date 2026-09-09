@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearOnboardingDraft } from '@/services/onboardingService';
 
 // ── Auth state shape ────────────────────────────────────────────────────
 // Minimal auth context for managing the pre-home-screen flow.
@@ -104,6 +105,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false);
     setHasCompletedOnboarding(false);
     await AsyncStorage.multiRemove([AUTH_KEY, ONBOARDING_KEY]);
+    // Also drop any in-progress onboarding draft (personal/medical/
+    // location/family/emergency-step data not yet folded into the real
+    // profile/family-circle stores) — otherwise a different person logging
+    // in on this device would see the previous user's half-finished
+    // answers pre-filled into onboarding. Note this deliberately does NOT
+    // touch the profile or family-circle data itself, matching how the
+    // rest of this app's local-only storage already behaves on logout
+    // (nothing else is wiped either) — only clearOnboardingDraft's own
+    // narrower scope applies here.
+    await clearOnboardingDraft();
   }, []);
 
   const value = useMemo<AuthContextValue>(

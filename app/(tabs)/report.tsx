@@ -27,9 +27,11 @@ export default function Report() {
   const [description, setDescription] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
-  // No device-location hook yet (PROGRESS.md Phase 1), so this seeds from
-  // the user's profile area rather than a hardcoded street name — same
-  // single-source-of-truth pattern as safe.tsx/updates.tsx.
+  // Seeds from useCurrentArea(), which now prefers live device location
+  // over the profile's static home area when a GPS fix is available
+  // (PROGRESS.md Phase 1's useDeviceLocation) — same single-source-of-truth
+  // pattern as safe.tsx/updates.tsx. Still just a starting value the user
+  // can edit, not a live-tracked field.
   useEffect(() => {
     if (area && !locationSeeded) {
       setLocation(area);

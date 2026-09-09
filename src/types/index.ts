@@ -17,6 +17,15 @@ export type FamilyMember = {
   lastUpdatedAt?: string; // ISO timestamp, set by a real backend
   phone?: string; // enables Call/Message from family-member.tsx
   lastKnownLocation?: string; // free-text for now; becomes lat/long once a backend can receive live updates
+  /**
+   * Marked during onboarding's emergency-contacts step (or later from the
+   * Family tab) as someone who should be message-first during an SOS.
+   * SOS itself (app/sos.tsx) still messages everyone with a phone number —
+   * this flag is surfaced as a priority indicator rather than a hard
+   * filter, since in a real emergency reaching more people is strictly
+   * better than reaching fewer.
+   */
+  isPrimaryEmergencyContact?: boolean;
 };
 
 // ---- Profile ------------------------------------------------------------
@@ -27,6 +36,26 @@ export type ProfileData = {
   phone: string;
   location: string;
   note: string;
+  dob?: string; // free-text as entered during onboarding (DD / MM / YYYY) — not parsed/validated yet
+  bloodType?: string;
+};
+
+// ---- Medical profile (onboarding) ----------------------------------------
+
+/**
+ * Collected during onboarding's medical step and shown to first responders
+ * in an emergency. Local-only today (see onboardingService.ts) — there's no
+ * backend yet to sync this against, and no screen currently displays it
+ * back to the user post-onboarding (a natural Phase 1/5 follow-up: surface
+ * this on a "medical ID" card reachable from Profile or directly from the
+ * SOS confirmed screen, similar to iOS/Android's own Medical ID feature).
+ */
+export type MedicalProfile = {
+  allergies: string[];
+  conditions: string; // free-text, as entered
+  usesMobilityAid: boolean;
+  hasVisualImpairment: boolean;
+  hasHearingImpairment: boolean;
 };
 
 // ---- Safe places ----------------------------------------------------------
@@ -155,4 +184,22 @@ export type NotificationItem = {
   body: string;
   createdAt: string; // ISO timestamp
   read: boolean;
+};
+
+// ---- SOS -------------------------------------------------------------
+
+/**
+ * One SOS activation, logged locally on-device (no backend yet — see
+ * PROGRESS.md Phase 1/3). `contactsNotified` records who an SMS share-sheet
+ * was opened for at the time, not delivery confirmation — there's no way to
+ * confirm an SMS actually sent from a share sheet, so the log is honest
+ * about intent ("we opened a message to these people") rather than claiming
+ * a guarantee it can't back up.
+ */
+export type SosEvent = {
+  id: string;
+  triggeredAt: string; // ISO timestamp
+  calledEmergencyNumber: boolean; // whether tel:112 was opened
+  contactsNotified: { id: string; name: string }[]; // family members an SMS was opened for
+  location?: string; // free-text area/address at time of trigger, if known
 };

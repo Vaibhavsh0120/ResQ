@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import {
   AlertTriangle,
   ChevronRight,
+  LifeBuoy,
   MapPin,
   MessageCircle,
   Send,
@@ -39,6 +40,32 @@ export default function Home() {
             <Text style={[styles.h1, { color: colors.foreground }]}>{greeting}</Text>
           </View>
         </View>
+
+        {/* SOS: the single highest-priority control in the app (PROGRESS.md
+            §2.4/§7) — deliberately placed above the readiness card, not
+            buried in a menu or folded into the quick-actions grid where
+            it'd read as just another equal-weight option. router.push (not
+            replace) so the Home screen is still underneath in history —
+            backing out of SOS should return here, not to some other tab. */}
+        <Pressable
+          onPress={() => router.push('/sos')}
+          style={({ pressed }) => [
+            styles.sosBar,
+            { backgroundColor: colors.danger, shadowColor: colors.shadowStrong },
+            pressed && styles.pressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Open emergency SOS"
+        >
+          <View style={[styles.sosIcon, { backgroundColor: colors.onBrandOverlaySoft }]}>
+            <LifeBuoy size={20} color={colors.onDanger} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={[styles.sosTitle, { color: colors.onDanger }]}>Emergency SOS</Text>
+            <Text style={[styles.sosSubtitle, { color: colors.onDanger }]}>Tap to alert your contacts &amp; call 112</Text>
+          </View>
+          <ChevronRight size={18} color={colors.onDanger} />
+        </Pressable>
 
         <Pressable
           onPress={() => router.push('/readiness')}
@@ -215,6 +242,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
     marginTop: 4,
+  },
+  sosBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 13,
+    borderRadius: radius.lg,
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 1,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  sosIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  sosSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
   },
   heroCard: {
     flexDirection: 'row',

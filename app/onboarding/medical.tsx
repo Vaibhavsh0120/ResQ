@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { X, Plus } from '@/components/icons';
+import { getOnboardingMedical, saveOnboardingMedical } from '@/services/onboardingService';
 
 export default function MedicalStep() {
   const { colors } = useAppTheme();
@@ -18,6 +19,17 @@ export default function MedicalStep() {
   const [visualImpairment, setVisualImpairment] = useState(false);
   const [hearingImpairment, setHearingImpairment] = useState(false);
 
+  useEffect(() => {
+    getOnboardingMedical().then((saved) => {
+      if (!saved) return;
+      setAllergies(saved.allergies);
+      setConditions(saved.conditions);
+      setMobilityAid(saved.usesMobilityAid);
+      setVisualImpairment(saved.hasVisualImpairment);
+      setHearingImpairment(saved.hasHearingImpairment);
+    });
+  }, []);
+
   const addAllergy = () => {
     const trimmed = allergyInput.trim();
     if (trimmed && !allergies.includes(trimmed)) {
@@ -30,11 +42,22 @@ export default function MedicalStep() {
     setAllergies((prev) => prev.filter((x) => x !== a));
   };
 
-  const onContinue = () => {
+  const persist = () =>
+    saveOnboardingMedical({
+      allergies,
+      conditions: conditions.trim(),
+      usesMobilityAid: mobilityAid,
+      hasVisualImpairment: visualImpairment,
+      hasHearingImpairment: hearingImpairment,
+    });
+
+  const onContinue = async () => {
+    await persist();
     router.push('/onboarding/family' as any);
   };
 
-  const onSkip = () => {
+  const onSkip = async () => {
+    await persist();
     router.push('/onboarding/family' as any);
   };
 
