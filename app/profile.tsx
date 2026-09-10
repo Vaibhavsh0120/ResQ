@@ -4,8 +4,10 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   Bell,
+  BriefcaseMedical,
   Check,
   ChevronRight,
+  Droplets,
   Info,
   LifeBuoy,
   LockKeyhole,
@@ -16,6 +18,7 @@ import {
   Phone,
   ShieldCheck,
   Sun,
+  User,
   Users,
 } from '@/components/icons';
 import { useAppTheme, ThemeMode } from '@/theme/ThemeContext';
@@ -29,10 +32,13 @@ import { useAuth } from '@/context/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { useFamily } from '@/hooks/useFamily';
 import { useReadiness } from '@/hooks/useReadiness';
-import { ProfileData } from '@/types';
+import { useMedicalProfile } from '@/hooks/useMedicalProfile';
+import { ProfileData, MedicalProfile } from '@/types';
 import { mockProfile } from '@/data/mockProfile';
 import { initialsFromName } from '@/utils/format';
 import { getGuidesReadCount } from '@/services/guidesReadService';
+
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export default function Profile() {
   useHideTabBar();
@@ -41,6 +47,7 @@ export default function Profile() {
   const { profile, loading, error, refresh, save, saving } = useProfile();
   const { members } = useFamily();
   const { data: readiness } = useReadiness();
+  const { medicalProfile } = useMedicalProfile();
   const [guidesRead, setGuidesRead] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileData>(mockProfile);
@@ -111,13 +118,70 @@ export default function Profile() {
             <FormField label="Email address" value={draft.email} onChangeText={(v) => update('email', v)} />
             <FormField label="Phone number" value={draft.phone} onChangeText={(v) => update('phone', v)} />
             <FormField label="Home area" value={draft.location} onChangeText={(v) => update('location', v)} />
+            <FormField label="Date of birth" value={draft.dob ?? ''} onChangeText={(v) => update('dob', v)} placeholder="DD / MM / YYYY" keyboardType="numeric" />
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Blood type</Text>
+              <View style={styles.bloodGrid}>
+                {BLOOD_TYPES.map((bt) => {
+                  const isSelected = draft.bloodType === bt;
+                  return (
+                    <Pressable key={bt} onPress={() => update('bloodType', isSelected ? '' : bt)}>
+                      <Text
+                        style={[
+                          styles.bloodChip,
+                          {
+                            backgroundColor: isSelected ? colors.brandDeep : colors.surfaceSoft,
+                            borderColor: isSelected ? colors.brand : colors.line,
+                            color: isSelected ? colors.onBrand : colors.foreground,
+                          },
+                        ]}
+                      >
+                        {bt}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
             <FormField label="Emergency note" value={draft.note} onChangeText={(v) => update('note', v)} multiline />
           </View>
         ) : (
           <View style={styles.detailsStack}>
             <DetailRow icon={<Phone size={17} color={colors.foreground} />} title={displayed.phone} subtitle="Emergency contact number" />
             <DetailRow icon={<MapPin size={17} color={colors.foreground} />} title={displayed.location} subtitle="Primary location" />
+            {displayed.dob && <DetailRow icon={<User size={17} color={colors.foreground} />} title={displayed.dob} subtitle="Date of birth" />}
+            {displayed.bloodType && <DetailRow icon={<Droplets size={17} color={colors.foreground} />} title={displayed.bloodType} subtitle="Blood type" />}
             <DetailRow icon={<Info size={17} color={colors.foreground} />} title="Emergency note" subtitle={displayed.note} />
+          </View>
+        )}
+
+        {!editing && medicalProfile && hasMedicalInfo(medicalProfile) && (
+          <View style={[styles.medicalCard, { borderColor: colors.dangerSoft, backgroundColor: colors.dangerSoft }]}>
+            <View style={styles.medicalHeading}>
+              <BriefcaseMedical size={17} color={colors.danger} />
+              <Text style={[styles.medicalTitle, { color: colors.danger }]}>Medical ID</Text>
+            </View>
+            <Text style={[styles.medicalSub, { color: colors.inkMuted }]}>
+              Visible to you here and shareable with first responders in an emergency.
+            </Text>
+            {medicalProfile.allergies.length > 0 && (
+              <View style={styles.medicalRow}>
+                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Allergies</Text>
+                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.allergies.join(', ')}</Text>
+              </View>
+            )}
+            {!!medicalProfile.conditions && (
+              <View style={styles.medicalRow}>
+                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Conditions</Text>
+                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.conditions}</Text>
+              </View>
+            )}
+            {accessibilityNeedsSummary(medicalProfile) && (
+              <View style={styles.medicalRow}>
+                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Accessibility</Text>
+                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{accessibilityNeedsSummary(medicalProfile)}</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -191,11 +255,15 @@ function FormField({
   value,
   onChangeText,
   multiline,
+  placeholder,
+  keyboardType,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   multiline?: boolean;
+  placeholder?: string;
+  keyboardType?: 'default' | 'numeric' | 'phone-pad' | 'email-address';
 }) {
   const { colors } = useAppTheme();
   return (
@@ -205,6 +273,9 @@ function FormField({
         value={value}
         onChangeText={onChangeText}
         multiline={multiline}
+        placeholder={placeholder}
+        placeholderTextColor={colors.inkMuted}
+        keyboardType={keyboardType}
         style={[
           multiline ? styles.textarea : styles.input,
           { borderColor: colors.line, color: colors.foreground, backgroundColor: colors.surfaceSoft },
@@ -235,6 +306,29 @@ function StatCard({ value, label }: { value: string; label: string }) {
       <Text style={[styles.statLabel, { color: colors.inkMuted }]}>{label}</Text>
     </View>
   );
+}
+
+// True when the medical profile has anything actually worth showing —
+// onboarding's medical step can be skipped or left entirely blank (every
+// toggle off, no allergies, no conditions), and a Medical ID card with
+// nothing in it would just be visual noise instead of the safety-relevant
+// summary it's meant to be.
+function hasMedicalInfo(profile: MedicalProfile): boolean {
+  return (
+    profile.allergies.length > 0 ||
+    !!profile.conditions ||
+    profile.usesMobilityAid ||
+    profile.hasVisualImpairment ||
+    profile.hasHearingImpairment
+  );
+}
+
+function accessibilityNeedsSummary(profile: MedicalProfile): string {
+  const needs: string[] = [];
+  if (profile.usesMobilityAid) needs.push('Uses mobility aid');
+  if (profile.hasVisualImpairment) needs.push('Visual impairment');
+  if (profile.hasHearingImpairment) needs.push('Hearing impairment');
+  return needs.join(', ');
 }
 
 function SettingsRow({
@@ -330,11 +424,29 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: '700', marginBottom: 6 },
   input: { height: 46, paddingHorizontal: 12, borderWidth: 1, borderRadius: radius.sm, fontSize: 13 },
   textarea: { minHeight: 70, padding: 12, borderWidth: 1, borderRadius: radius.sm, fontSize: 13, textAlignVertical: 'top' },
+  bloodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  bloodChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
   detailsStack: { gap: 8, marginBottom: 20 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderWidth: 1, borderRadius: radius.md },
   rowIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   detailTitle: { fontSize: 12, fontWeight: '700' },
   detailSubtitle: { fontSize: 10, marginTop: 3, lineHeight: 14 },
+  medicalCard: { borderWidth: 1, borderRadius: radius.lg, padding: 14, marginBottom: 20, gap: 8 },
+  medicalHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  medicalTitle: { fontSize: 13, fontWeight: '800' },
+  medicalSub: { fontSize: 10, lineHeight: 14, marginBottom: 2 },
+  medicalRow: { gap: 2 },
+  medicalLabel: { fontSize: 11, fontWeight: '700' },
+  medicalValue: { fontSize: 11, lineHeight: 16 },
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 22 },
   statCard: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: radius.lg },
   statValue: { fontSize: 18, fontWeight: '800' },

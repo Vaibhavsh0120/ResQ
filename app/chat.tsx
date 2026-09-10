@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronRight, Menu, MessageCircle, Plus, Send, Sparkles, X } from '@/components/icons';
+import { ChevronRight, Menu, MessageCircle, Plus, Send, ShieldCheck, Sparkles, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -109,17 +109,32 @@ export default function Chat() {
           contentContainerStyle={styles.messagesList}
           renderItem={({ item }) => (
             <View style={[styles.messageRow, item.role === 'user' ? styles.messageRowUser : styles.messageRowBot]}>
-              <View
-                style={[
-                  styles.messageBubble,
-                  item.role === 'user'
-                    ? { backgroundColor: colors.brandDeep, borderBottomRightRadius: 4 }
-                    : { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4 },
-                ]}
-              >
-                <Text style={{ color: item.role === 'user' ? colors.onBrand : colors.foreground, fontSize: 12, lineHeight: 18 }}>
-                  {item.text || (item.pending ? '...' : '')}
-                </Text>
+              <View style={styles.messageColumn}>
+                <View
+                  style={[
+                    styles.messageBubble,
+                    item.role === 'user'
+                      ? { backgroundColor: colors.brandDeep, borderBottomRightRadius: 4 }
+                      : { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4 },
+                  ]}
+                >
+                  <Text style={{ color: item.role === 'user' ? colors.onBrand : colors.foreground, fontSize: 12, lineHeight: 18 }}>
+                    {item.text || (item.pending ? '...' : '')}
+                  </Text>
+                </View>
+                {!!item.sources?.length && (
+                  <View style={styles.sourcesList}>
+                    {item.sources.map((source) => (
+                      <View key={source.id} style={[styles.sourceRow, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+                        <ShieldCheck size={12} color={colors.brand} />
+                        <Text style={[styles.sourceText, { color: colors.inkMuted }]} numberOfLines={1}>
+                          {source.title}
+                          {source.publisher ? ` · ${source.publisher}` : ''}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -171,7 +186,11 @@ const styles = StyleSheet.create({
   messageRow: { flexDirection: 'row' },
   messageRowUser: { justifyContent: 'flex-end' },
   messageRowBot: { justifyContent: 'flex-start' },
-  messageBubble: { maxWidth: '83%', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 15 },
+  messageColumn: { maxWidth: '83%', gap: 6 },
+  messageBubble: { paddingHorizontal: 14, paddingVertical: 11, borderRadius: 15 },
+  sourcesList: { gap: 4 },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderRadius: radius.md },
+  sourceText: { flex: 1, fontSize: 10 },
   suggestionsRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 10, flexWrap: 'wrap' },
   suggestionChip: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderRadius: radius.pill },
   suggestionText: { fontSize: 10 },

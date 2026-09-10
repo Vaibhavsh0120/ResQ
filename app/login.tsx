@@ -193,7 +193,18 @@ export default function Login() {
 
           {/* ── Footer ── */}
           <Text style={[styles.footNote, { color: colors.inkFaint }]}>
-            By continuing, you agree to the Terms and Privacy Policy.
+            By continuing, you agree to the{' '}
+            <Text style={[styles.footNoteLink, { color: colors.brand }]} onPress={() => router.push('/terms')}>
+              Terms
+            </Text>{' '}
+            and{' '}
+            <Text
+              style={[styles.footNoteLink, { color: colors.brand }]}
+              onPress={() => router.push('/privacy-policy')}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
         </View>
       </ScrollView>
@@ -357,5 +368,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     lineHeight: 16,
+  },
+  footNoteLink: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

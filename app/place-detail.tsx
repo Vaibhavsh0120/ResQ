@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock3, HomeIcon, MapPin, Navigation, Phone } from '@/components/icons';
+import { Clock3, HomeIcon, Navigation, Phone } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
+import { MiniMap } from '@/components/MiniMap';
 import { useSafePlaces } from '@/hooks/useSafePlaces';
 
 /** Drill-in screen for a single safe place, reached by tapping a row on the Safe places tab. */
@@ -50,10 +51,13 @@ export default function PlaceDetail() {
 
         {!loading && !error && place && (
           <>
-            <View style={[styles.mapPreview, { borderColor: colors.line, backgroundColor: colors.brandSoft }]}>
-              <View style={[styles.mapPin, { backgroundColor: colors.brand, borderColor: colors.onBrandBorder }]}>
-                <MapPin size={20} color={colors.onBrand} />
-              </View>
+            <View style={styles.mapWrap}>
+              <MiniMap
+                markers={place.latitude != null && place.longitude != null ? [{ id: place.id, latitude: place.latitude, longitude: place.longitude }] : []}
+                height={140}
+                zoom={15}
+                accessibilityLabel={`Map showing ${place.name}`}
+              />
             </View>
 
             <View style={styles.hero}>
@@ -116,16 +120,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   notFound: { paddingTop: 40, alignItems: 'center' },
   notFoundText: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  mapPreview: {
-    height: 140,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    marginTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  mapPin: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 3 },
+  mapWrap: { marginTop: 10 },
   hero: { marginTop: 18, marginBottom: 20 },
   name: { fontSize: 22, fontWeight: '800', letterSpacing: -0.6, marginTop: 6 },
   detail: { fontSize: 12, marginTop: 6 },

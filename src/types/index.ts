@@ -7,6 +7,18 @@
 
 export type FamilyStatusTone = 'success' | 'warning';
 
+/**
+ * Whether this person has actually joined the circle yet. Separate from
+ * `status` (below), which is free-text check-in display copy ("Safe",
+ * "Checking in", "Invite sent") shown as-is in the UI — `inviteStatus` is
+ * the typed field code can branch on (e.g. a future "resend invite"
+ * action, or filtering who counts toward the circle) without parsing
+ * display strings. A real backend flips this to 'accepted' once the
+ * invited person actually signs up; mock mode has no such signal, so
+ * invited members simply stay 'pending' locally.
+ */
+export type FamilyInviteStatus = 'pending' | 'accepted';
+
 export type FamilyMember = {
   id: string;
   name: string;
@@ -18,6 +30,18 @@ export type FamilyMember = {
   phone?: string; // enables Call/Message from family-member.tsx
   lastKnownLocation?: string; // free-text for now; becomes lat/long once a backend can receive live updates
   /**
+   * Real coordinates for family-member.tsx's map, added alongside the
+   * free-text lastKnownLocation above rather than replacing it — the text
+   * still carries the "shared 12 min ago"-style recency detail a raw
+   * coordinate pair can't. Optional and only set for members who actually
+   * have a location "on file" (mirroring lastKnownLocation's own
+   * "not shared yet" case) — there's no backend yet for a member's own
+   * device to report a live position, so this stays a static snapshot,
+   * same as mockSafePlaces.ts's coordinates.
+   */
+  latitude?: number;
+  longitude?: number;
+  /**
    * Marked during onboarding's emergency-contacts step (or later from the
    * Family tab) as someone who should be message-first during an SOS.
    * SOS itself (app/sos.tsx) still messages everyone with a phone number —
@@ -26,6 +50,8 @@ export type FamilyMember = {
    * better than reaching fewer.
    */
   isPrimaryEmergencyContact?: boolean;
+  /** See `FamilyInviteStatus` above. Optional so existing/mock members without it don't break — UI treats a missing value as 'accepted' (i.e. an established member, not a pending invite). */
+  inviteStatus?: FamilyInviteStatus;
 };
 
 // ---- Profile ------------------------------------------------------------

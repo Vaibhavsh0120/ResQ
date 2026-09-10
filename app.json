@@ -53,10 +53,13 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "ResQ uses your photos to attach evidence to incident reports."
+          "photosPermission": "ResQ uses your photos to attach evidence to incident reports.",
+          "cameraPermission": "ResQ uses your camera to attach a photo of what you're seeing to an incident report."
         }
       ],
-      "expo-video"
+      "expo-notifications",
+      "expo-video",
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true

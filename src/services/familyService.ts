@@ -50,7 +50,10 @@ export async function checkInFamilyMember(memberId: string): Promise<FamilyMembe
     const current = await readLocal();
     const member = current.find((m) => m.id === memberId);
     if (!member) throw new Error(`Unknown family member: ${memberId}`);
-    const updated: FamilyMember = { ...member, status: 'Safe', tone: 'success' as const };
+    // A check-in is a strong signal the person has actually joined the
+    // circle, so a still-pending invite is upgraded to accepted here too —
+    // not just the display status/tone.
+    const updated: FamilyMember = { ...member, status: 'Safe', tone: 'success' as const, inviteStatus: 'accepted' };
     await writeLocal(current.map((m) => (m.id === memberId ? updated : m)));
     return mockDelay(updated);
   }
@@ -77,6 +80,7 @@ export async function inviteFamilyMember(name: string, relation: string, phone?:
       tone: 'warning',
       phone: phone || undefined,
       lastKnownLocation: 'Location not shared yet',
+      inviteStatus: 'pending',
     };
     await writeLocal([...current, created]);
     await AsyncStorage.setItem(SEEDED_KEY, 'true');

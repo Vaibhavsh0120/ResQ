@@ -28,8 +28,10 @@ app/                      expo-router routes (file-based navigation)
   _layout.tsx              root stack: providers + navigator
   index.tsx                splash screen
   login.tsx                auth screen
-  register.tsx              sign up
+  register.tsx              sign up (real DOB + minimum-age gate, see Legal & compliance below)
   forgot-password.tsx       locally-simulated password reset
+  privacy-policy.tsx         in-app Privacy Policy (see Legal & compliance below)
+  terms.tsx                   in-app Terms of Service (see Legal & compliance below)
   onboarding/                five-step first-run flow, real per-step persistence (see below)
     _layout.tsx
     personal.tsx              name / phone / DOB / blood type
@@ -58,14 +60,21 @@ app/                      expo-router routes (file-based navigation)
     safe.tsx                   Safe places
 
 src/
-  components/               shared UI building blocks (Header, buttons, icons.ts, ...)
+  components/               shared UI building blocks (Header, buttons, icons.ts, MiniMap.tsx, ...)
   theme/                    design tokens + ThemeContext (light/dark mode)
   context/                  app-wide React context (auth, tab bar visibility)
   types/                    shared TypeScript types, including RAG-shaped types
   data/                     mock data, one file per domain (mockFamily.ts, mockGuidance.ts, ...)
   services/                 data-fetching layer — see "Architecture" below
+                              (includes medicalProfileService.ts — durable medical-ID
+                              storage, separate from onboarding's draft-only storage —
+                              and localNotificationsService.ts — on-device reminder
+                              scheduling via expo-notifications)
   hooks/                    React hooks screens actually call (useUpdates, useChat, ...)
-  utils/                    small pure helpers (format.ts: greetings, dates, initials)
+  utils/                    small pure helpers (format.ts: greetings/dates/initials; age.ts: DOB parsing + minimum-age check)
+
+docs/
+  data-safety.md            Play Store Data Safety form mapping (see Legal & compliance below)
 
 assets/images/              app icon, splash, favicon — real brand mark, light/dark variants, no colored background
 assets/videos/               startup animation videos (light/dark mode)
@@ -207,6 +216,36 @@ or black text belongs on top of a given fill.
 Toggle dark mode from Profile → appearance row, or it follows the system
 setting by default (`src/theme/ThemeContext.tsx`).
 
+## Legal & compliance
+
+- **Privacy Policy / Terms of Service** (`app/privacy-policy.tsx`,
+  `app/terms.tsx`) are real, app-specific content — not filler text —
+  describing exactly what this no-backend build actually does (see each
+  file's own header comment). Reachable from `login`/`register`'s footer
+  links (works pre-login — both screens are registered outside every
+  `Stack.Protected` group in `app/_layout.tsx` for exactly that reason)
+  and from Profile → Privacy & security.
+- **Minimum age: 18**, enforced at registration (`app/register.tsx`,
+  `src/utils/age.ts`) via a required date-of-birth field. Rationale:
+  India's DPDP Act 2023 (this app's first launch market) requires
+  verifiable parental/guardian consent to process a child's data, and
+  there's no backend to run a real consent flow against — see
+  `src/utils/age.ts`'s doc comment and the Privacy Policy's "Minimum
+  age" section for the full reasoning. Onboarding's own `dob` field
+  (collected later, for the profile) is unaffected and unchanged.
+- **Play Store Data Safety mapping**: `docs/data-safety.md` maps this
+  app's actual data collection onto Play Console's Data Safety
+  questionnaire categories — written to be filled into that form
+  directly at submission time, with source-of-truth file references so
+  it can be re-verified rather than trusted blindly as it ages.
+- **CI build signing**: `.github/workflows/README.md` documents that
+  the existing `build-release.yml` produces genuinely unsigned
+  artifacts (fine for Android sideloading/testing; the iOS IPA cannot
+  install on a real device at all without signing) and what a real
+  signed pipeline would need — deliberately not built yet, since it
+  needs an actual Apple Developer Program membership and signing
+  credentials, which is a real-world/paid decision, not a code change.
+
 ## Notable UX decisions
 
 - **Safe places** shows the profile icon in its header (not a back arrow),
@@ -234,21 +273,36 @@ setting by default (`src/theme/ThemeContext.tsx`).
   person was entered in both steps. This keeps SOS's contact list and the
   Family tab in sync by construction rather than needing to reconcile two
   separate stores.
+- **Incident reports support both camera capture and a library picker**
+  (`app/(tabs)/report.tsx`), not gallery-only. "Take photo" and "Choose
+  from library" are two explicit buttons rather than one combined picker,
+  since a real incident report often means capturing what's happening
+  right now rather than something already on the device.
+- **Medical info has a read-only display surface on Profile** — a
+  "Medical ID" card (allergies, conditions, accessibility needs) shown
+  only when the user actually filled in onboarding's medical step. It's
+  read-only from Profile; editing still happens by re-running that
+  onboarding step, same as other onboarding-collected fields with no
+  dedicated edit screen yet.
+- **The family check-in reminder is a real, one-off local notification,
+  not a repeating daily alarm.** Toggling "Remind me" on `family.tsx`'s
+  check-in card schedules a single `expo-notifications` reminder 24 hours
+  out via `src/services/localNotificationsService.ts` — deliberately not
+  a recurring 9am trigger, since nothing in the app actually configures a
+  fixed daily check-in time and a repeating notification would imply
+  otherwise. This is on-device only; there's no push/remote notification
+  server.
 
 ## Known limitations / next steps
 
 - **Auth is a stub.** `login.tsx` accepts any input and always succeeds;
   wire it to a real auth service and add the token-injection point noted
   in `src/services/apiClient.ts` (`Authorization` header comment).
-- **No real map view yet.** `useDeviceLocation()` and real coordinates
-  exist end-to-end now (see "Device location" below), but Safe places and
-  place-detail still show a static pin illustration rather than an actual
-  map — the next natural step, now that there's something real to render.
-- **`FamilyMember.lastKnownLocation` is free text only** (no lat/long), so
-  "Locate" on `family-member.tsx` opens a name-based Maps search rather
-  than a coordinate-based one. This only matters once family members can
-  share live coordinates, which needs a backend to receive them (no such
-  backend exists yet).
+- **`FamilyMember.latitude`/`.longitude` are static snapshots, not live
+  tracking.** Real for the members who have a location "on file" (mirrors
+  `lastKnownLocation`'s own "not shared yet" case), but there's no
+  backend yet for a member's own device to report a live position — see
+  "Maps" below.
 - **No formal test suite for services/hooks in isolation** — there is a
   render-smoke suite (`npm run test:smoke`, `__tests__/smoke.test.tsx`)
   that mounts every screen and waits out its mock data fetch, but the
@@ -277,4 +331,28 @@ up with no code changes. Two screens use the real coordinates directly:
 - **SOS** (`app/sos.tsx`) includes a real Google Maps link in the SMS sent
   to family contacts and in the local SOS history log, when a fix is
   available — falling back to the free-text area otherwise.
+
+### Maps
+
+`src/components/MiniMap.tsx` is the shared map surface used by
+`safe.tsx`, `place-detail.tsx`, and `family-member.tsx` — deliberately
+just those three (not every screen with a coordinate) to keep maps to
+places they add real value, not decoration.
+
+- **Native**: a real MapLibre (`@maplibre/maplibre-react-native`) map
+  over [OpenFreeMap](https://openfreemap.org) vector tiles — no API key,
+  no request/view limits by the operator's own policy. Requires a
+  dev-client rebuild (`expo prebuild`); **does not work in plain Expo
+  Go**, since it's native code, not part of the Expo SDK.
+- **Web**: MapLibre React Native has no web renderer at all, so
+  `MiniMap` falls back to the same stylized static-pin illustration
+  `safe.tsx`/`place-detail.tsx` used before this component existed —
+  `expo export --platform web` keeps working unchanged.
+- `family-member.tsx`'s map only renders when that person actually has
+  `latitude`/`longitude` on file (added alongside the existing free-text
+  `lastKnownLocation`, not replacing it) — there's no backend yet for a
+  family member's own device to report a live position, so these are
+  static snapshots seeded in `mockFamily.ts`, not live tracking.
+- See `PROGRESS.md` §3.1 for the full SDK-choice rationale and the
+  per-screen review of where a map was and wasn't worth adding.
 

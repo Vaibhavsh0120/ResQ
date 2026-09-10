@@ -39,5 +39,6 @@ export const config = {
     guidance: '/v1/guidance', // RAG: retrieve safety guidance for a disaster type
     chat: '/v1/chat', // RAG: conversational assistant, streaming-capable
     profile: '/v1/profile',
+    medicalProfile: '/v1/medical-profile',
   },
 } as const;

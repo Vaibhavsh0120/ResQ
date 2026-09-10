@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, Check, ImagePlus, Info, MapPin, Send, ShieldCheck } from '@/components/icons';
+import { AlertTriangle, Camera, Check, ImagePlus, Info, MapPin, Send, ShieldCheck, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -42,10 +42,19 @@ export default function Report() {
   const toggleType = (type: string) =>
     setTypes((current) => (current.includes(type) ? current.filter((t) => t !== type) : [...current, type]));
 
-  const pickPhoto = async () => {
+  const pickFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return;
     const pickerResult = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (!pickerResult.canceled && pickerResult.assets?.[0]) {
+      setPhotoUri(pickerResult.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) return;
+    const pickerResult = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
     if (!pickerResult.canceled && pickerResult.assets?.[0]) {
       setPhotoUri(pickerResult.assets[0].uri);
     }
@@ -195,17 +204,40 @@ export default function Report() {
               />
             </View>
 
-            <Pressable
-              onPress={pickPhoto}
-              style={[styles.photoUpload, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
-            >
-              <View style={styles.photoUploadLeft}>
-                <ImagePlus size={18} color={colors.brand} />
-                <Text style={[styles.photoUploadText, { color: colors.brand }]} numberOfLines={1}>
-                  {photoUri ? photoUri.split('/').pop() : 'Add a photo (optional)'}
-                </Text>
-              </View>
-            </Pressable>
+            <View>
+              <Text style={[styles.label, { color: colors.foreground }]}>Add a photo (optional)</Text>
+              {photoUri ? (
+                <View style={[styles.photoPreviewRow, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}>
+                  <Image source={{ uri: photoUri }} style={styles.photoPreviewImage} />
+                  <View style={styles.flex}>
+                    <Text style={[styles.photoUploadText, { color: colors.foreground }]} numberOfLines={1}>
+                      {photoUri.split('/').pop()}
+                    </Text>
+                    <Text style={[styles.photoPreviewHint, { color: colors.inkMuted }]}>Attached to this report</Text>
+                  </View>
+                  <Pressable onPress={() => setPhotoUri(null)} accessibilityLabel="Remove photo" hitSlop={8} style={styles.photoRemoveButton}>
+                    <X size={16} color={colors.inkMuted} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.photoButtonsRow}>
+                  <Pressable
+                    onPress={takePhoto}
+                    style={[styles.photoButton, { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+                  >
+                    <Camera size={17} color={colors.brand} />
+                    <Text style={[styles.photoUploadText, { color: colors.brand }]}>Take photo</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={pickFromLibrary}
+                    style={[styles.photoButton, { borderColor: colors.line, backgroundColor: colors.surface }]}
+                  >
+                    <ImagePlus size={17} color={colors.foreground} />
+                    <Text style={[styles.photoUploadText, { color: colors.foreground }]}>Choose from library</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
 
             {error && <ErrorState message={error} />}
 
@@ -296,16 +328,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlignVertical: 'top',
   },
-  photoUpload: {
+  photoButtonsRow: { flexDirection: 'row', gap: 8 },
+  photoButton: {
+    flex: 1,
     minHeight: 50,
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: radius.sm,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
   },
-  photoUploadLeft: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  photoUploadText: { fontSize: 12, flexShrink: 1 },
+  photoUploadText: { fontSize: 12, flexShrink: 1, fontWeight: '600' },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+  },
+  photoPreviewImage: { width: 44, height: 44, borderRadius: radius.sm },
+  photoPreviewHint: { fontSize: 10, marginTop: 2 },
+  photoRemoveButton: { padding: 6 },
   formNote: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   formNoteText: { fontSize: 10, flex: 1 },
   successState: { alignItems: 'center', paddingTop: 40, paddingHorizontal: 10 },

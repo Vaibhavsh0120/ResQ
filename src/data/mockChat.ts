@@ -40,6 +40,7 @@ export const mockChatThreads: ChatThread[] = [
         id: 'thread-1-msg-4',
         role: 'assistant',
         text: 'A common guideline is about 1 gallon (roughly 4 liters) per person per day, enough for at least 3 days — more if anyone in your household has specific medical needs.',
+        sources: [{ id: 'ndma-general', title: 'General Preparedness Guidelines', publisher: 'NDMA' }],
       },
     ],
   },

@@ -12,11 +12,12 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, ChevronRight, LockKeyhole, User } from '@/components/icons';
+import { AlertTriangle, CalendarDays, ChevronRight, LockKeyhole, User } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { useAuth } from '@/context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MINIMUM_AGE, meetsMinimumAge, parseDob } from '@/utils/age';
 
 const logoSource = require('../assets/images/logo-mark.png');
 
@@ -31,15 +32,49 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [dob, setDob] = useState('');
 
   const [nameFocused, setNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmFocused, setConfirmFocused] = useState(false);
+  const [dobFocused, setDobFocused] = useState(false);
+  const [ageError, setAgeError] = useState<string | null>(null);
 
   const passwordsMatch = password === confirmPassword || confirmPassword.length === 0;
 
+  // India-first launch: the DPDP Act 2023 requires verifiable
+  // parental/guardian consent to process a child's data (see
+  // src/utils/age.ts's doc comment). There's no backend to run a real
+  // consent flow against yet, so — rather than fake one — registration
+  // itself requires being MINIMUM_AGE (18) or older. DOB is asked for here,
+  // at the actual account-creation gate, rather than only later in
+  // onboarding's personal-info step (which happens after an account
+  // already exists and previously had no age check on it at all).
+  const onDobBlur = () => {
+    setDobFocused(false);
+    if (!dob.trim()) {
+      setAgeError(null);
+      return;
+    }
+    if (!parseDob(dob)) {
+      setAgeError('Enter a valid date as DD / MM / YYYY.');
+    } else if (!meetsMinimumAge(dob)) {
+      setAgeError(`You must be at least ${MINIMUM_AGE} to create a ResQ account.`);
+    } else {
+      setAgeError(null);
+    }
+  };
+
   const onRegister = async () => {
+    if (!parseDob(dob)) {
+      setAgeError('Enter your date of birth as DD / MM / YYYY to continue.');
+      return;
+    }
+    if (!meetsMinimumAge(dob)) {
+      setAgeError(`You must be at least ${MINIMUM_AGE} to create a ResQ account.`);
+      return;
+    }
     await register({ name: name || 'New User', email: email || 'user@example.com' });
     router.replace('/onboarding/personal' as any);
   };
@@ -113,6 +148,44 @@ export default function Register() {
                   <User size={16} color={colors.inkFaint} />
                 </View>
               </View>
+            </View>
+
+            {/* Date of birth (minimum-age gate — see src/utils/age.ts) */}
+            <View>
+              <Text style={[styles.label, { color: colors.foreground }]}>Date of birth</Text>
+              <View style={styles.inputWithIcon}>
+                <TextInput
+                  value={dob}
+                  onChangeText={(text) => {
+                    setDob(text);
+                    if (ageError) setAgeError(null);
+                  }}
+                  placeholder="DD / MM / YYYY"
+                  keyboardType="numeric"
+                  onFocus={() => setDobFocused(true)}
+                  onBlur={onDobBlur}
+                  style={[
+                    styles.input,
+                    styles.inputPadded,
+                    {
+                      borderColor: ageError ? colors.danger : dobFocused ? colors.brand : colors.line,
+                      color: colors.foreground,
+                      backgroundColor: colors.surfaceSoft,
+                    },
+                  ]}
+                  placeholderTextColor={colors.inkFaint}
+                />
+                <View style={styles.inputIcon}>
+                  <CalendarDays size={16} color={ageError ? colors.danger : colors.inkFaint} />
+                </View>
+              </View>
+              {ageError ? (
+                <Text style={[styles.errorText, { color: colors.danger }]}>{ageError}</Text>
+              ) : (
+                <Text style={[styles.helperText, { color: colors.inkFaint }]}>
+                  ResQ requires account holders to be 18 or older.
+                </Text>
+              )}
             </View>
 
             {/* Email */}
@@ -249,7 +322,18 @@ export default function Register() {
 
           {/* ── Footer ── */}
           <Text style={[styles.footNote, { color: colors.inkFaint }]}>
-            By creating an account, you agree to the Terms and Privacy Policy.
+            By creating an account, you agree to the{' '}
+            <Text style={[styles.footNoteLink, { color: colors.brand }]} onPress={() => router.push('/terms')}>
+              Terms
+            </Text>{' '}
+            and{' '}
+            <Text
+              style={[styles.footNoteLink, { color: colors.brand }]}
+              onPress={() => router.push('/privacy-policy')}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
         </View>
       </ScrollView>
@@ -345,6 +429,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontWeight: '600',
   },
+  helperText: {
+    fontSize: 11,
+    marginTop: 5,
+  },
 
   // Buttons
   primaryButton: {
@@ -405,5 +493,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     paddingBottom: 12,
+  },
+  footNoteLink: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

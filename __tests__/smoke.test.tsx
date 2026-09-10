@@ -58,6 +58,21 @@ jest.mock('expo-blur', () => {
   return { BlurView: View };
 });
 
+// MiniMap.tsx conditionally requires this native module (skipped only on
+// Platform.OS === 'web' — Jest's default test environment reports 'ios',
+// so the real require would fire and pull in native-only code). Mocked to
+// plain RN Views, same pattern as expo-blur above: enough for a render
+// smoke test to mount safe.tsx/place-detail.tsx/family-member.tsx and
+// exercise MiniMap's "has real markers" branch without a real native map.
+jest.mock('@maplibre/maplibre-react-native', () => {
+  const { View } = require('react-native');
+  return {
+    Map: View,
+    Camera: View,
+    ViewAnnotation: View,
+  };
+});
+
 const initialSafeAreaMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
@@ -96,6 +111,8 @@ const staticScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/login.tsx', () => require('../app/login').default],
   ['app/register.tsx', () => require('../app/register').default],
   ['app/forgot-password.tsx', () => require('../app/forgot-password').default],
+  ['app/privacy-policy.tsx', () => require('../app/privacy-policy').default],
+  ['app/terms.tsx', () => require('../app/terms').default],
   ['app/onboarding/personal.tsx', () => require('../app/onboarding/personal').default],
   ['app/onboarding/medical.tsx', () => require('../app/onboarding/medical').default],
   ['app/onboarding/family.tsx', () => require('../app/onboarding/family').default],

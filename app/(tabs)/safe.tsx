@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { Check, ChevronRight, HomeIcon, MapPin, Navigation } from '@/components/icons';
+import { Check, ChevronRight, HomeIcon, MapPin } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
-import { IconButton } from '@/components/IconButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
+import { MiniMap } from '@/components/MiniMap';
 import { useSafePlaces } from '@/hooks/useSafePlaces';
 import { useCurrentArea } from '@/hooks/useCurrentArea';
 
@@ -42,16 +42,6 @@ export default function Safe() {
     }
   }, [area, districtSeeded]);
 
-  // The map card below is a stylized static illustration, not a real
-  // MapView (no map SDK wired in yet — see PROGRESS.md). "Map view"
-  // highlights it instead of pretending to switch to a live map.
-  const [mapHighlighted, setMapHighlighted] = useState(false);
-
-  const highlightMap = () => {
-    setMapHighlighted(true);
-    setTimeout(() => setMapHighlighted(false), 900);
-  };
-
   const saveLocation = () => {
     if (draftDistrict.trim()) setDistrict(draftDistrict.trim());
     setDistrictSeeded(true); // user has now taken over this field; stop auto-syncing from profile
@@ -60,16 +50,7 @@ export default function Safe() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header
-        title="Safe places"
-        showProfile
-        onProfilePress={() => router.push('/profile')}
-        action={
-          <IconButton label="Highlight map" onPress={highlightMap} muted>
-            <Navigation size={18} color={colors.inkMuted} />
-          </IconButton>
-        }
-      />
+      <Header title="Safe places" showProfile onProfilePress={() => router.push('/profile')} />
       <Screen>
         <View style={[styles.locationBanner, { borderColor: colors.line }]}>
           <View style={[styles.locationDot, { backgroundColor: colors.brandSoft }]}>
@@ -108,22 +89,12 @@ export default function Safe() {
           </View>
         )}
 
-        <View
-          style={[
-            styles.mapCard,
-            { borderColor: mapHighlighted ? colors.brand : colors.line, backgroundColor: colors.brandSoft },
-            mapHighlighted && styles.mapCardHighlighted,
-          ]}
-        >
-          <View style={[styles.mapPin, styles.pinOne, { backgroundColor: colors.brand, borderColor: colors.onBrandBorder }]}>
-            <MapPin size={16} color={colors.onBrand} />
-          </View>
-          <View style={[styles.mapPin, styles.pinTwo, { backgroundColor: colors.danger, borderColor: colors.onBrandBorder }]}>
-            <MapPin size={16} color={colors.onDanger} />
-          </View>
-          <View style={[styles.mapPin, styles.pinThree, { backgroundColor: colors.brand, borderColor: colors.onBrandBorder }]}>
-            <MapPin size={16} color={colors.onBrand} />
-          </View>
+        <View style={styles.mapWrap}>
+          <MiniMap
+            markers={(places ?? []).map((p) => ({ id: p.id, latitude: p.latitude ?? 0, longitude: p.longitude ?? 0 }))}
+            height={190}
+            accessibilityLabel={`Map showing ${(places ?? []).length} safe places nearby`}
+          />
           <View style={[styles.mapLabel, { backgroundColor: colors.onBrandCard }]}>
             <Text style={[styles.mapLabelText, { color: colors.featuredIconFg }]}>{(places ?? []).length} safe places nearby</Text>
           </View>
@@ -196,28 +167,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   locationSave: { width: 40, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  mapCard: {
-    height: 190,
+  mapWrap: {
     marginTop: 12,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
   },
-  mapCardHighlighted: {
-    borderWidth: 2,
-  },
-  mapPin: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-  },
-  pinOne: { left: '26%', top: '37%' },
-  pinTwo: { right: '25%', top: '22%' },
-  pinThree: { right: '39%', bottom: '19%' },
   mapLabel: {
     position: 'absolute',
     left: 12,

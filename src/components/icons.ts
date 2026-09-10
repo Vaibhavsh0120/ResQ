@@ -9,7 +9,10 @@ import {
   Activity,
   TriangleAlert as AlertTriangle,
   Bell,
+  BellOff,
   BriefcaseMedical,
+  Camera,
+  CalendarDays,
   CarFront,
   Check,
   ChevronRight,
@@ -49,13 +52,16 @@ import {
   Moon,
   MonitorSmartphone,
   Mail,
+  Scale,
 } from 'lucide-react-native';
 
 export {
   Activity,
   AlertTriangle,
   Bell,
+  BellOff,
   BriefcaseMedical,
+  Camera,
   CarFront,
   Check,
   ChevronRight,
@@ -95,4 +101,6 @@ export {
   RefreshCw,
   AlertCircle,
   Mail,
+  CalendarDays,
+  Scale,
 };

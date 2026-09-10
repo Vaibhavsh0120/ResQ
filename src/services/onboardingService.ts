@@ -146,6 +146,7 @@ export function mergeOnboardingContacts(
     phone: phone.trim() || undefined,
     lastKnownLocation: 'Location not shared yet',
     isPrimaryEmergencyContact: isPrimary,
+    inviteStatus: 'pending',
   });
 
   for (const m of familyStepMembers) {

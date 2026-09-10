@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, Check, LockKeyhole, MapPin, ShieldCheck, Users, X } from '@/components/icons';
+import { AlertTriangle, Check, ChevronRight, LockKeyhole, MapPin, Scale, ShieldCheck, Users, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -117,6 +117,35 @@ export default function PrivacySecurity() {
           </View>
         </View>
 
+        <View style={styles.sectionHeading}>
+          <Eyebrow>LEGAL</Eyebrow>
+        </View>
+
+        <Pressable
+          onPress={() => router.push('/privacy-policy')}
+          style={[styles.navRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
+        >
+          <View style={[styles.rowIcon, { backgroundColor: colors.brandSoft }]}>
+            <ShieldCheck size={17} color={colors.brand} />
+          </View>
+          <Text style={[styles.navRowText, { color: colors.foreground }]}>Privacy Policy</Text>
+          <ChevronRight size={17} color={colors.inkMuted} />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/terms')}
+          style={[styles.navRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
+        >
+          <View style={[styles.rowIcon, { backgroundColor: colors.brandSoft }]}>
+            <Scale size={17} color={colors.brand} />
+          </View>
+          <Text style={[styles.navRowText, { color: colors.foreground }]}>Terms of Service</Text>
+          <ChevronRight size={17} color={colors.inkMuted} />
+        </Pressable>
+
+        <View style={styles.sectionHeading}>
+          <Eyebrow>YOUR DATA, ON THIS DEVICE</Eyebrow>
+        </View>
+
         <Pressable onPress={onDownloadData} disabled={exporting} style={[styles.linkRow, { borderColor: colors.line }, exporting && styles.disabledRow]}>
           <Text style={[styles.linkText, { color: colors.brand }]}>{exporting ? 'Preparing your data...' : 'Download my data'}</Text>
         </Pressable>
@@ -217,6 +246,8 @@ const styles = StyleSheet.create({
   infoIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   infoTitle: { fontSize: 13, fontWeight: '700' },
   infoSubtitle: { fontSize: 11, marginTop: 4, lineHeight: 16 },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderWidth: 1, borderRadius: radius.md, marginBottom: 8 },
+  navRowText: { flex: 1, fontSize: 13, fontWeight: '700' },
   linkRow: { paddingVertical: 14, borderBottomWidth: 1, marginTop: 4 },
   linkText: { fontSize: 13, fontWeight: '700' },
   disabledRow: { opacity: 0.5 },

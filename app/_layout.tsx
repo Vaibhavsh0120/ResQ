@@ -56,6 +56,17 @@ function RootStack() {
             of auth state (see app/index.tsx). */}
         <Stack.Screen name="index" options={{ animation: 'fade' }} />
 
+        {/* Legal — deliberately outside every Stack.Protected group below,
+            not duplicated into each one. Play Store policy and India's
+            DPDP Act both expect a privacy policy to be readable *before*
+            creating an account (login/register link to these), and the
+            same two screens need to stay reachable from Profile/Privacy &
+            security once signed in — putting them here once, ungated,
+            covers both without registering them twice (expo-router
+            doesn't allow the same screen name in two groups anyway). */}
+        <Stack.Screen name="privacy-policy" />
+        <Stack.Screen name="terms" />
+
         {/* State 1: logged out. `login` listed first so it's the landing
             screen the moment this group becomes active (e.g. right after
             logout flips isLoggedIn to false). */}

@@ -6,6 +6,7 @@ import { radius } from '@/theme/colors';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
 import { X, Plus } from '@/components/icons';
 import { getOnboardingMedical, saveOnboardingMedical } from '@/services/onboardingService';
+import { mergeMedicalProfile } from '@/services/medicalProfileService';
 
 export default function MedicalStep() {
   const { colors } = useAppTheme();
@@ -42,14 +43,22 @@ export default function MedicalStep() {
     setAllergies((prev) => prev.filter((x) => x !== a));
   };
 
-  const persist = () =>
-    saveOnboardingMedical({
+  const persist = async () => {
+    const data = {
       allergies,
       conditions: conditions.trim(),
       usesMobilityAid: mobilityAid,
       hasVisualImpairment: visualImpairment,
       hasHearingImpairment: hearingImpairment,
-    });
+    };
+    await saveOnboardingMedical(data);
+    // Also write into the real, durable medical profile immediately, not
+    // just the onboarding draft — mirrors personal.tsx's mergeProfile call.
+    // Without this, medical info only ever lived in the draft key, which
+    // clearOnboardingDraft() wipes on logout — the same gap §2.5 found and
+    // fixed for name/phone/family, just not yet for medical info.
+    await mergeMedicalProfile(data);
+  };
 
   const onContinue = async () => {
     await persist();

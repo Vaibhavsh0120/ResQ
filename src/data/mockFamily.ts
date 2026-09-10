@@ -10,6 +10,9 @@ export const mockFamily: FamilyMember[] = [
     tone: 'success',
     phone: '+1 (555) 014-2201',
     lastKnownLocation: 'Riverside district · shared 12 min ago',
+    latitude: 28.6139,
+    longitude: 77.209,
+    inviteStatus: 'accepted',
   },
   {
     id: 'fam-2',
@@ -20,6 +23,7 @@ export const mockFamily: FamilyMember[] = [
     tone: 'warning',
     phone: '+1 (555) 014-2202',
     lastKnownLocation: 'Location not shared yet',
+    inviteStatus: 'accepted',
   },
   {
     id: 'fam-3',
@@ -30,5 +34,8 @@ export const mockFamily: FamilyMember[] = [
     tone: 'success',
     phone: '+1 (555) 014-2203',
     lastKnownLocation: 'Riverside district · shared 40 min ago',
+    latitude: 28.6229,
+    longitude: 77.216,
+    inviteStatus: 'accepted',
   },
 ];

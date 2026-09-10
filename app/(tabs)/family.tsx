@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronRight, Clock3, Plus, ShieldCheck } from '@/components/icons';
+import { Bell, BellOff, ChevronRight, Clock3, Plus, ShieldCheck } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useFamily } from '@/hooks/useFamily';
 import { useCurrentArea } from '@/hooks/useCurrentArea';
+import { useCheckInReminder } from '@/hooks/useCheckInReminder';
 import { FamilyMember } from '@/types';
 
 const RELATION_OPTIONS = ['Partner', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'];
@@ -20,6 +21,7 @@ export default function Family() {
   const { colors } = useAppTheme();
   const { members, loading, error, refresh, checkIn, invite } = useFamily();
   const { area } = useCurrentArea();
+  const { enabled: reminderEnabled, permissionDenied: reminderDenied, toggle: toggleReminder } = useCheckInReminder();
   const [addingOpen, setAddingOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [newName, setNewName] = useState('');
@@ -178,7 +180,22 @@ export default function Family() {
               <View style={styles.flex}>
                 <Text style={[styles.checkinTitle, { color: colors.foreground }]}>Next check-in</Text>
                 <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
+                {reminderDenied && (
+                  <Text style={[styles.checkinBody, { color: colors.warning }]}>
+                    Notifications are turned off for ResQ in system settings.
+                  </Text>
+                )}
               </View>
+              <Pressable
+                onPress={toggleReminder}
+                hitSlop={8}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: reminderEnabled }}
+                accessibilityLabel="Remind me to check in"
+                style={styles.reminderToggle}
+              >
+                {reminderEnabled ? <Bell size={16} color={colors.brand} /> : <BellOff size={16} color={colors.inkMuted} />}
+              </Pressable>
               <Pressable onPress={() => checkIn('fam-2')} hitSlop={8}>
                 <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in</Text>
               </Pressable>
@@ -225,4 +242,5 @@ const styles = StyleSheet.create({
   checkinTitle: { fontSize: 12, fontWeight: '700' },
   checkinBody: { fontSize: 11, marginTop: 3 },
   checkinLink: { fontSize: 11, fontWeight: '700' },
+  reminderToggle: { padding: 4 },
 });

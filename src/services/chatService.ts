@@ -73,6 +73,14 @@ export async function streamChatReply(
   }
 }
 
+/**
+ * Canned source list emitted after the mock reply finishes streaming, so
+ * chat.tsx's sources rendering (see PROGRESS.md Phase 1) has something real
+ * to exercise in mock mode too, not just on previously-saved threads. Shape
+ * matches what a real RAG endpoint would emit as its own `sources` event.
+ */
+const mockAssistantSources = [{ id: 'ndma-general', title: 'General Preparedness Guidelines', publisher: 'NDMA' }];
+
 async function mockStreamReply(onEvent: (event: ChatStreamEvent) => void, signal?: AbortSignal): Promise<void> {
   const words = mockAssistantReply.split(' ');
   for (const word of words) {
@@ -80,6 +88,8 @@ async function mockStreamReply(onEvent: (event: ChatStreamEvent) => void, signal
     await new Promise((resolve) => setTimeout(resolve, 35));
     onEvent({ type: 'token', text: `${word} ` });
   }
+  if (signal?.aborted) return;
+  onEvent({ type: 'sources', sources: mockAssistantSources });
   onEvent({ type: 'done' });
 }
 

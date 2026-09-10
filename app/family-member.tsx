@@ -9,7 +9,9 @@ import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
+import { MiniMap } from '@/components/MiniMap';
 import { useFamily } from '@/hooks/useFamily';
+import { mapsLinkForCoords } from '@/utils/location';
 
 /**
  * Drill-in screen for a single person in the user's circle — reached by
@@ -47,11 +49,15 @@ export default function FamilyMemberDetail() {
 
   const onLocate = () => {
     if (!person) return;
-    // No live-tracking backend yet — this shares the last known location we
-    // have on file, which mirrors what checkIn already surfaces below.
-    Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(person.lastKnownLocation ?? person.name)}`
-    );
+    // Prefer a real coordinate-based Maps link when we have one on file
+    // (see FamilyMember.latitude/.longitude's doc comment in types/index.ts)
+    // — falls back to the existing name-based search otherwise, since
+    // not every member has shared a location yet.
+    const url =
+      person.latitude != null && person.longitude != null
+        ? mapsLinkForCoords(person.latitude, person.longitude)
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(person.lastKnownLocation ?? person.name)}`;
+    Linking.openURL(url);
   };
 
   return (
@@ -114,6 +120,17 @@ export default function FamilyMemberDetail() {
               </Text>
             )}
 
+            {person.latitude != null && person.longitude != null && (
+              <View style={styles.mapWrap}>
+                <MiniMap
+                  markers={[{ id: person.id, latitude: person.latitude, longitude: person.longitude, kind: 'user' }]}
+                  height={150}
+                  zoom={14}
+                  accessibilityLabel={`Map showing ${person.name}'s last known location`}
+                />
+              </View>
+            )}
+
             <View style={styles.sectionHeading}>
               <Eyebrow>STATUS</Eyebrow>
               <Text style={[styles.h2, { color: colors.foreground }]}>Latest check-in</Text>
@@ -161,6 +178,7 @@ const styles = StyleSheet.create({
   actionButtonDisabled: { opacity: 0.4 },
   actionLabel: { fontSize: 11, fontWeight: '700' },
   noPhoneNote: { fontSize: 10, lineHeight: 14, marginBottom: 16 },
+  mapWrap: { marginBottom: 20 },
   sectionHeading: { marginBottom: 12 },
   h2: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3, marginTop: 4 },
   infoCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderWidth: 1, borderRadius: radius.md, marginBottom: 24 },
