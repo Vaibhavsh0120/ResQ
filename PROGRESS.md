@@ -134,6 +134,74 @@ Don't delete old lines — this file's value is the history.
   implementation session rather than a rushed same-message patch — see
   the ready-to-paste prompt given directly to the user for that
   session's starting point.
+- **Follow-up (2026-09-10, later still): real web-map support shipped.**
+  Picked up the scoped-out item above. `maplibre-gl@^6.9.0` +
+  `react-map-gl@^8.1.3` added as real dependencies (installed and
+  resolved for real this session — this sandbox had full npm registry
+  access, unlike several earlier ones). `src/components/MiniMap.tsx`
+  restructured into three internal pieces sharing one public API
+  (`markers`/`zoom`/`height`/`accessibilityLabel` — unchanged, so
+  `safe.tsx`/`place-detail.tsx`/`family-member.tsx` needed zero edits):
+  `NativeMap` (the existing MapLibre-RN branch, untouched logic, just
+  extracted into its own function), `WebMap` (new), and the existing
+  `StaticMapFallback` for the zero-marker case on either platform. Both
+  `react-map-gl/maplibre` and `maplibre-gl/dist/maplibre-gl.css` are
+  required lazily inside `if (Platform.OS === 'web')` guards, mirroring
+  the pre-existing native `require` pattern exactly, so nothing web-only
+  is ever resolved by Metro on a native build.
+  Three things this session verified directly rather than assumed, per
+  the ask:
+  1. **CSS import**: this project's installed `@expo/metro-config`
+     (57.0.12) defaults `isCSSEnabled` to `true` — confirmed by reading
+     `ExpoMetroConfig.js` directly — so a plain
+     `require('maplibre-gl/dist/maplibre-gl.css')` needs no loader
+     config. The actual export run (below) produced a real, separate
+     `.css` chunk, not just an absence-of-error.
+  2. **`maplibre-gl` v6 ESM-only worker setup**: inspected the installed
+     package directly — `"type": "module"`, no CJS build, worker
+     instantiated from a URL it derives from `import.meta.url` at
+     runtime (no `maplibregl.workerUrl`/`setWorkerUrl` call needed, the
+     simpler of the two setups its own source supports). This resolves
+     under Metro because this project's installed `metro-config`
+     (traced into `metro-config/src/defaults/index.js`) has
+     `unstable_enablePackageExports: true` by default, so Metro honors
+     the `import` condition in `maplibre-gl`'s `package.json` `exports`
+     map. No extra Metro config was added — none was needed.
+  3. **The web build actually succeeds**: ran `npx expo export
+     --platform web` for real (not the static-reasoning fallback prior
+     sessions had to use). It completed clean and produced
+     `maplibre-gl-*.css` (83KB) and a separate `maplibre-gl-*.js`
+     (1.1MB) chunk alongside the existing entry bundle, plus all 34
+     static routes including the three MiniMap consumers.
+  `WebMap` uses `@vis.gl/react-maplibre`'s `Map`/`Marker` (what
+  `react-map-gl/maplibre` now re-exports — confirmed by reading its
+  `dist/maplibre.js`, a one-line re-export, rather than assuming the
+  older `react-map-gl` API shape still applies). Same `MapPinBadge`
+  (color-by-`kind`) and same theme-matched OSM attribution badge as
+  native, with MapLibre's own attribution control turned off via
+  `attributionControl={false}` so there's exactly one badge, matching
+  the native branch's `attribution={false}` treatment. Centering logic
+  (average of marker positions, single-marker case included) is
+  duplicated between `NativeMap` and `WebMap` rather than shared,
+  because `react-map-gl`'s `initialViewState` takes `longitude`/
+  `latitude` directly while `maplibre-react-native`'s `Camera` takes a
+  `center: [lng, lat]` tuple — genuinely different camera APIs, so a
+  shared helper would be a leakier abstraction than two short, honest
+  duplicates.
+  Verified: `tsc --noEmit` clean against the real dependency graph (no
+  filtered/throwaway tsconfig needed this time), **51/51 tests still
+  passing** (Jest's `Platform.OS` reports `'ios'`, so the new web branch
+  is never exercised by the existing suite — confirmed this is
+  deliberate and correct, not a coverage gap worth chasing, since a real
+  web-render assertion would need `jest-environment-jsdom` plus mocking
+  WebGL, disproportionate to this component), and the `expo export
+  --platform web` run above. Not verified: what the map actually looks
+  like in a browser (no browser available in this sandbox) — the
+  recommended next step for whoever picks this up is `npx expo start
+  --web` on a real machine to eyeball marker placement, attribution
+  badge legibility in both themes, and pan/zoom feel against the native
+  version.
+
 - Phase 3 (backend stack) is the next real unblocked decision — see
   §4's "not yet made" list.
 
@@ -195,8 +263,10 @@ checklist below.
 - **`guidance-result.tsx`'s sources + confidence badge** — the reference
   pattern for showing sources anywhere else (already copied into
   `chat.tsx`).
-- **`src/components/MiniMap.tsx`** (added 2026-09-10) — the reusable map
-  surface (real MapLibre on native, static-pin fallback on web). Any new
+- **`src/components/MiniMap.tsx`** (added 2026-09-10, web support added
+  2026-09-10) — the reusable map surface: real MapLibre on native, real
+  `react-map-gl`/`maplibre-gl` on web, static-pin fallback only when
+  there are zero valid markers on either platform. Any new
   screen that wants a map should use this rather than a new one-off —
   see §3.1 for the design rationale.
 - **Splash screen** (`app/index.tsx`) has tap-to-skip and a fallback
@@ -803,9 +873,11 @@ internal moderation/verification tool (Phase 3).
 staying as-is deliberately (§3.2) — not something to "remove," just to
 add a signed sibling to once credentials exist. (The fake-pin map
 illustration on `safe.tsx`/`place-detail.tsx` was replaced with a real
-map on 2026-09-10 — it now only remains as `MiniMap.tsx`'s deliberate
-web fallback, since MapLibre has no web renderer, not as a placeholder
-waiting to be built.)
+map on 2026-09-10 — first MapLibre-native-only with a static-pin web
+fallback, then a real `react-map-gl`/`maplibre-gl` web map later the
+same day; the static-pin illustration now only remains as
+`MiniMap.tsx`'s zero-marker fallback on either platform, not a
+placeholder waiting to be built.)
 
 **Non-code deliverables still open (Phase 2):** host the Privacy Policy
 and Terms at a public URL; get both reviewed by counsel familiar with

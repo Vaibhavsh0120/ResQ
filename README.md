@@ -353,10 +353,16 @@ places they add real value, not decoration.
   no request/view limits by the operator's own policy. Requires a
   dev-client rebuild (`expo prebuild`); **does not work in plain Expo
   Go**, since it's native code, not part of the Expo SDK.
-- **Web**: MapLibre React Native has no web renderer at all, so
-  `MiniMap` falls back to the same stylized static-pin illustration
-  `safe.tsx`/`place-detail.tsx` used before this component existed —
-  `expo export --platform web` keeps working unchanged.
+- **Web**: a real map too — `maplibre-gl` + `react-map-gl/maplibre` over
+  the same OpenFreeMap style, no separate config or API key needed.
+  Both are pulled in via a `Platform.OS === 'web'`-guarded `require`
+  (mirroring the native branch's own guard) so neither the JS nor the
+  CSS is ever bundled into a native build. `expo export --platform web`
+  produces a real, separate `maplibre-gl` JS chunk and CSS file
+  alongside the app bundle — confirmed by an actual run, not assumed.
+  The static-pin illustration `safe.tsx`/`place-detail.tsx` used before
+  this component existed only remains as the zero-marker fallback (e.g.
+  a family member with no location on file), on either platform.
 - `family-member.tsx`'s map only renders when that person actually has
   `latitude`/`longitude` on file (added alongside the existing free-text
   `lastKnownLocation`, not replacing it) — there's no backend yet for a
