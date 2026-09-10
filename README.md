@@ -21,6 +21,15 @@ The app runs entirely on local mock data out of the box — no backend
 required to explore every screen. See **Connecting a real backend** below
 for how to point it at a live API.
 
+**One real limitation with plain Expo Go:** the map screens (Safe places,
+a place's detail view, a family member with a saved location) use
+MapLibre, a native module that isn't part of Expo Go's fixed set of
+bundled libraries. In Expo Go you'll see a `TurboModuleRegistry.getEnforcing(...):
+'MLRNCameraModule' could not be found` error on those specific screens —
+every other screen works fine, since this is a MapLibre-only limitation,
+not a general app issue. See **Running with maps (dev-client build)**
+below to fix it.
+
 ## Project structure
 
 ```
@@ -355,4 +364,66 @@ places they add real value, not decoration.
   static snapshots seeded in `mockFamily.ts`, not live tracking.
 - See `PROGRESS.md` §3.1 for the full SDK-choice rationale and the
   per-screen review of where a map was and wasn't worth adding.
+
+### Running with maps (dev-client build)
+
+`expo-dev-client` is already installed and configured (`app.json`'s
+`plugins` array includes both `@maplibre/maplibre-react-native` and
+`expo-dev-client`) — a dev-client build is a real, installable native
+app with those native modules built in, unlike Expo Go's fixed,
+pre-built app. You only need to build it once per device/emulator; after
+that, `npx expo start` reconnects to it the same way it does to Expo Go.
+
+**Local build (needs the platform's native toolchain installed):**
+
+```bash
+# Android — needs Android Studio / the Android SDK installed
+npx expo run:android
+
+# iOS — needs a Mac with Xcode installed; not possible on Windows/Linux
+npx expo run:ios
+```
+
+Each command does a one-time native build (`expo prebuild` generates the
+`android/`/`ios/` folders, then the platform's own build tool compiles
+them) and installs the result on a connected device or running
+emulator/simulator. Expect the first build to take several minutes —
+subsequent `npx expo start` sessions reuse this same installed build and
+reload instantly, the same fast-refresh workflow as Expo Go.
+
+**If you already have a dev-client build installed and still see
+`TurboModuleRegistry.getEnforcing(...): 'MLRNCameraModule' could not be
+found` (or any other native-module-not-found error):** the terminal
+banner will say `Using development build`, which confirms Metro found a
+dev client and is not falling back to Expo Go — but that dev client's
+*native binary* was built before MapLibre (or any other native module)
+was added to `app.json`'s `plugins` array, so the module genuinely isn't
+compiled into it. `npx expo start` alone never rebuilds the native
+binary — it only reloads JS into whatever native app is already
+installed. **Re-run `npx expo run:android` (or `run:ios`, or a fresh EAS
+build)** to actually rebuild and reinstall; this is required any time
+`app.json`'s `plugins` array changes, not just the first time.
+
+**No local toolchain (e.g. building an iOS dev client from Windows):**
+[EAS Build](https://docs.expo.dev/build/introduction/) builds in the
+cloud instead of locally — needs a free Expo account, no Mac required
+even for iOS:
+
+```bash
+npx eas-cli build --profile development --platform android
+# or: --platform ios
+```
+
+This project doesn't have an `eas.json` yet since no EAS build has been
+set up — `eas build` on first run offers to generate one interactively
+(select the "development" build profile, which is what bundles
+`expo-dev-client`). Once the cloud build finishes, EAS gives you a
+QR-code/link to install it directly on your device.
+
+**Note for this project specifically:** `expo-secure-store` and
+`expo-crypto` (used by `src/services/secureStorage.ts` for at-rest
+encryption — see `docs/data-safety.md`) are both included in Expo Go
+already, unlike MapLibre — so a dev-client build is only actually
+required for the map screens, not for encryption to work. If you only
+need to test screens without a map, plain Expo Go still works fine.
 

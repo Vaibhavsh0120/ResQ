@@ -7,6 +7,16 @@ session logs; you don't need to read it to work on this project.
 
 **Working assumptions** (confirm these still hold before trusting anything
 below):
+- **Project goal (clarified 2026-09-10): a portfolio/resume-quality
+  build, not an actual store submission.** The app will not actually be
+  uploaded to the Play Store or App Store. This matters for how to read
+  Phase 2 and 5 below: items like "legal counsel review" and "public
+  hosting of legal docs" were originally scoped against a real launch
+  — under this clarified goal they're not real blockers, since there's
+  no real submission they'd be gating. Every phase is still built to a
+  genuinely working, non-placeholder standard (per this file's own
+  discipline, §0/§1) — this only changes which *business/legal* steps
+  are in-scope, not the engineering bar.
 - Launch market is **India first** — the emergency number (112), privacy
   law (DPDP Act 2023), and localization choices below assume this.
 - **No backend exists yet.** This mobile repo is the entire project today.
@@ -26,7 +36,7 @@ Don't delete old lines — this file's value is the history.
 |---|---|---|
 | **0 — Stop lying to the user** | Every visible control does the real (or honestly simulated) thing it claims. No fake values on screen. | ✅ **Complete** (2026-09-09). |
 | **1 — Build the actual safety product** | SOS, medical info, family circle, and guidance work end-to-end on-device, no backend needed. | ✅ **Complete (2026-09-10).** Real maps (MapLibre + OpenFreeMap) shipped, closing the phase's last open item. |
-| **2 — Legal, privacy & store-compliance baseline** | Privacy Policy/Terms, Data Safety mapping, minimum-age decision, signed release builds. | 🟡 **Mostly done (2026-09-10).** In-app Privacy Policy/Terms, a real 18+ registration gate, and a Data Safety mapping doc are built and verified. **Signed release builds deliberately deferred** — see §3.2; the existing unsigned CI workflow is untouched and still the right tool for device testing. |
+| **2 — Legal, privacy & store-compliance baseline** | Privacy Policy/Terms, Data Safety mapping, minimum-age decision, signed release builds. | ✅ **Complete (2026-09-10), under this project's clarified scope.** In-app Privacy Policy/Terms, a real 18+ registration gate, a Data Safety mapping doc, and the signed-build workflow are all built and verified. **Not actually store-submission-ready** — the signed workflow has no real credentials wired in, and the legal docs aren't hosted at a public URL or counsel-reviewed — but per the working assumption above, this app isn't heading to a real store submission, so those aren't blockers for this project's actual goal. See §3.2 for the honest line between "built" and "would still need X for a real launch." |
 | **3 — Stand up a real backend** | Build the backend from scratch (none exists). | ⬜ **Not started** — blocked on the stack decision (§4). |
 | **4 — Cut over from mock to real data** | Swap each service's mock branch for the real API, one domain at a time. | ⬜ **Not started** — blocked on Phase 3. |
 | **5 — Hardening for public release** | — | ⬜ **Not started.** |
@@ -34,12 +44,114 @@ Don't delete old lines — this file's value is the history.
 
 **Next session:**
 - **Phase 1 is complete.** No further work queued for it.
-- **Finish Phase 2: signed builds**, once real Apple/Google developer
-  credentials exist to wire in — see §3.2 for exactly what that needs.
-  Not a coding task to start blind; needs a real account/credentials
-  decision first.
-- Otherwise, Phase 3 (backend stack) is the next real unblocked
-  decision — see §4's "not yet made" list.
+- **Phase 2 is complete.** No further work queued for it under this
+  project's clarified goal (portfolio build, not a real store
+  submission — see working assumptions above). If that goal ever
+  changes back to an actual launch, three real items would reopen:
+  wiring real credentials into `build-release-signed.yml`, hosting the
+  legal docs at a public URL, and a counsel review — see §3.2 for
+  specifics.
+- **Checkpoint (2026-09-10, later same day): real at-rest encryption
+  added, closing the Data Safety doc's "no ResQ-side encryption layer"
+  gap.** `src/services/secureStorage.ts` (new) — AES-256-GCM envelope
+  encryption (key in `expo-secure-store`/Keychain-Keystore, ciphertext
+  in AsyncStorage), wired into `profileService.ts`,
+  `medicalProfileService.ts`, `familyService.ts` (the sensitive
+  domains). `localDataService.ts` updated so "Download my data" still
+  decrypts for export and "Delete my account" now also destroys the
+  SecureStore key (real complete erasure, not partial). Added
+  `expo-crypto`, `expo-secure-store`, `expo-dev-client` to
+  `package.json` and registered the SecureStore plugin in `app.json`.
+  **Caught and fixed a real bug in the process:** jest-expo's
+  auto-mock silently no-ops expo-crypto's AES functions, which would
+  have made every encrypted read/write fail invisibly (secureStorage.ts
+  treats a decrypt failure as "key not found," not a thrown error) —
+  wrote a real jest mock using Node's actual AES-256-GCM
+  (`__tests__/__mocks__/expoCryptoMock.ts`) plus a dedicated 12-test
+  suite (`__tests__/secureStorage.test.ts`) covering round-trip, legacy
+  plaintext migration, key destruction, and export decryption.
+  Verified: `tsc --noEmit` clean, **51/51 tests passing** (39 previous +
+  12 new), `expo-doctor` unchanged at 19/21 (same 2 network-only
+  failures as baseline — not regressions).
+  **Follow-up (same day): both items closed.**
+  `app/privacy-policy.tsx` gained a new section 4, "How your data is
+  protected on-device" — states plainly what's encrypted (profile,
+  medical, family circle), where the key lives, what account deletion
+  destroys, and the same honest limitations `secureStorage.ts`/
+  `data-safety.md` state (native-only, doesn't protect an
+  already-unlocked device, no web equivalent yet). Sections renumbered
+  5–8 accordingly; existing profile/medical/family bullets in section 2
+  updated with a one-line encryption mention each. `LAST_UPDATED` was
+  already today's date, so left as-is rather than bumped. Checked
+  against `secureStorage.ts`/`data-safety.md` directly, not
+  independently reworded, so the three stay consistent.
+  `expo-dev-client` was registered in `app.json`'s `plugins` array
+  (was installed as a package last session but not actually wired into
+  the CNG config — real gap, now fixed) and a new README section,
+  "Running with maps (dev-client build)," gives the actual runnable
+  commands: `npx expo run:android`/`run:ios` for a local toolchain, and
+  `npx eas-cli build --profile development` for no local toolchain
+  (e.g. building an iOS dev client from Windows — this app's own dev
+  machine per its terminal output, which can't build iOS locally at
+  all). Also notes explicitly that `expo-secure-store`/`expo-crypto`
+  don't need this — both are included in Expo Go already, unlike
+  MapLibre, so only the map screens require the dev-client build.
+  Re-verified after these edits: `tsc --noEmit` clean, **51/51 tests
+  still passing**, `expo-doctor` unchanged at 19/21 (same 2
+  network-only failures), `app.json` still valid JSON.
+- **Follow-up (2026-09-10, later same day): stale-dev-client-build
+  confusion, README gap closed; real web-map support scoped but
+  deliberately not started this pass.** User hit the exact
+  `MLRNCameraModule` error again after the `expo-dev-client` plugin fix
+  — but this time the terminal banner correctly said `Using development
+  build`, confirming Metro found the dev client fine. Root cause: a dev
+  client's *native binary* only picks up a new native module (or a
+  plugins-array change) on an actual rebuild — `npx expo start` alone
+  reloads JS into whatever's already installed, it never rebuilds
+  native code. The user's installed dev client predated the
+  `expo-dev-client`/MapLibre plugin registration, so the JS was calling
+  a native module the installed binary genuinely didn't have compiled
+  in. Not a bug in this codebase — added an explicit "if you still see
+  this after already having a dev client installed" paragraph to
+  README's "Running with maps" section so this doesn't reoccur
+  silently for the next native-module addition either; the fix is
+  re-running `expo run:android`/`run:ios` (or a fresh EAS build), not a
+  code change.
+  **Web maps, investigated, not implemented this pass:** confirmed
+  `maplibre-gl` (the WebGL JS library, distinct from
+  `@maplibre/maplibre-react-native`) plus `react-map-gl/maplibre` (its
+  React wrapper, MapLibre's own recommended web integration) is a real,
+  current, actively maintained path — same OpenFreeMap style URL
+  already in use would work unchanged on web. Real scope, not a small
+  tweak: a second map rendering path with its own marker/camera API
+  (not identical to the native library's), a CSS import needing
+  verification against this project's Metro web-export setup
+  specifically (not just a generic bundler), and `react-map-gl`/
+  `maplibre-gl` v6 being ESM-only with a Web Worker URL registration
+  quirk that also needs checking against Expo's web bundler. Given that
+  real scope and that web was explicitly scoped out as "nice-to-have
+  only" when maps were first built (§3.1), this deserves its own
+  implementation session rather than a rushed same-message patch — see
+  the ready-to-paste prompt given directly to the user for that
+  session's starting point.
+- Phase 3 (backend stack) is the next real unblocked decision — see
+  §4's "not yet made" list.
+
+**Fix (2026-09-10, later same day): `expo-doctor` patch-version mismatch.**
+Reported on a real machine (not this sandbox): `expo` and `expo-router`
+were pinned to `~57.0.20`/`~57.0.19` in `package.json`, one patch behind
+what the installed Expo SDK expected (`~57.0.21`/`~57.0.20`) — a normal
+drift from Expo shipping SDK patch releases after this repo's
+`package-lock.json` was generated, not a real bug. Bumped both ranges in
+`package.json` and regenerated the lockfile with `npm install` (Expo's
+own recommended fix, `npx expo install --check`, does the same
+resolution). Verified in this sandbox: `expo-doctor`'s version-match
+check now passes explicitly (`✔ Check that packages match versions
+required by installed Expo SDK` under `--verbose`); the same 2
+network-allowlist failures as every prior session remain (unrelated,
+see the note below) — real baseline is now 20/21 in a network-restricted
+sandbox, expected 21/21 on a normal machine. `tsc --noEmit` clean,
+39/39 tests still passing — no regression from the bump.
 
 **Verification note (2026-09-10): the npm-registry network block that
 affected every prior session is gone in this sandbox.** `npm install`,
@@ -286,10 +398,24 @@ today, on-device, with zero backend.*
 - [x] `app/notifications.tsx` — built in Phase 0 as part of fixing the
   dead Header bell; satisfies this Phase 1 item too.
 
-### Phase 2 — Legal, privacy & store-compliance baseline 🟡 Mostly done (2026-09-10)
+### Phase 2 — Legal, privacy & store-compliance baseline ✅ Complete (2026-09-10, portfolio scope)
 
-*Goal: the legal/compliance surface a real store submission needs, built
-honestly against what this no-backend app can actually promise today.*
+*Goal: the legal/compliance surface a real store submission would need,
+built honestly against what this no-backend app can actually promise
+today.*
+
+**Where this genuinely stands:** every item that could be *coded* is
+done — Privacy Policy/Terms, the 18+ age gate, the Data Safety mapping
+doc, and the signed-build workflow itself. **Closed as complete
+2026-09-10** under this project's clarified goal (working assumptions,
+top of file): this is a portfolio/resume build, not heading to an
+actual store submission, so the three items that would otherwise block
+a real launch — real signing credentials, legal counsel review, and
+public hosting of the legal docs — aren't blockers for what this
+project is actually for. They're recorded below, per item, exactly as
+they'd need to be revisited if that goal ever changes; nothing here was
+silently dropped, the scope was deliberately narrowed and that decision
+is logged.
 
 - [x] **In-app Privacy Policy and Terms of Service.** **2026-09-10**:
   Built `app/privacy-policy.tsx` and `app/terms.tsx`, rendered through
@@ -311,11 +437,11 @@ honestly against what this no-backend app can actually promise today.*
   `login.tsx`/`register.tsx`'s footer text (now real `Text onPress`
   links, previously plain unlinked copy) and from two new rows on
   `privacy-security.tsx`.
-  **Not done, flagged in each file's own header comment:** neither
+  **Out of scope, flagged in each file's own header comment:** neither
   document is reviewed by counsel, and neither is hosted at a public
-  URL yet — Play Store's Data Safety section requires a live link, not
-  just in-app text. Both are real "next compliance pass" items, not
-  silently skipped.
+  URL — Play Store's Data Safety section would require a live link for
+  a real submission, but per the working assumption above this project
+  isn't heading to one, so this is a deliberate scope line, not a gap.
 
 - [x] **Minimum age / parental-consent decision — made and built.**
   **2026-09-10**: This was the one genuinely open decision blocking
@@ -364,31 +490,46 @@ honestly against what this no-backend app can actually promise today.*
   protection, with no ResQ-side encryption layer on top — both are real
   pre-launch items, not oversights.
 
-- [ ] **Signed release build (`eas.json` or native CI signing).**
-  **Investigated, deliberately not built, 2026-09-10.** The existing
-  `.github/workflows/build-release.yml` already works and is the right
-  tool for what it's used for today (getting a build onto a real
-  device to test, e.g., local notifications or SOS) — it was not
-  touched. But it is genuinely unsigned on both platforms
-  (`assembleDebug` for Android; `CODE_SIGNING_ALLOWED=NO` for iOS), and
-  that has real limits worth knowing about before assuming it's
-  further along than it is:
-  - Neither artifact can go to the Play Store or App Store as-is.
-  - The Android APK can still be sideloaded for real-device testing.
-  - The iOS IPA **cannot** be installed on a real iPhone/iPad at all —
-    iOS refuses to run unsigned binaries on hardware regardless of
-    sideloading settings. It's only useful for confirming the archive
-    step itself succeeds, or for the Simulator (which doesn't enforce
-    signing).
-  Documented this in `.github/workflows/README.md` rather than guessing
-  at credentials this sandbox doesn't have. Deliberately scoped as a
-  documentation-only pass this session — signing needs a real Apple
-  Developer Program membership (paid, human decision) and real
-  Google/Apple credentials as GitHub secrets, neither of which exist
-  yet. **When those exist**, the recommendation is a **second** workflow
-  (e.g. `build-release-signed.yml`) rather than modifying the existing
-  one, so the fast unsigned path stays available for day-to-day testing
-  — see §3.2.
+- [x] **Signed release build workflow — built, deliberately inert until
+  real credentials exist.** **2026-09-10**: Built
+  `.github/workflows/build-release-signed.yml`, a real second workflow
+  (per the prior session's own recommendation) that builds a signed
+  Android App Bundle (`bundleRelease` with a real upload keystore) and
+  a signed, installable iOS IPA (`xcodebuild archive` + `-exportArchive`
+  with a real distribution certificate/provisioning profile), then
+  attaches both to a GitHub Release. The original
+  `build-release.yml` is untouched and remains the fast, credential-free
+  path for day-to-day device testing — see §3.2/`.github/workflows/README.md`.
+  This workflow does not fabricate, guess, or hardcode any credential —
+  every secret (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `IOS_DIST_CERT_BASE64`,
+  `IOS_DIST_CERT_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64`,
+  `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_BASE64`) must already exist as
+  a real GitHub Actions secret before the workflow will attempt
+  anything. A `check-secrets` job runs first and fails immediately,
+  naming exactly which secrets are missing, rather than letting a build
+  fail confusingly mid-signing — verified this actually happens by
+  reasoning through the `if:` conditions on `build-android`/`build-ios`
+  (each gated independently on its own platform's `check-secrets`
+  output) and by validating the file's YAML structure and every
+  embedded shell block's syntax (`python3 -m yaml` + `bash -n` on each
+  `run:` block) in this sandbox, since no real GitHub Actions runner
+  was available to execute it end-to-end.
+  `.github/workflows/README.md` now documents, per secret, exactly what
+  it is and how a human obtains it (keystore generation command, where
+  in the Apple Developer portal / App Store Connect each credential
+  comes from) — none of which could or should be generated from this
+  session.
+  **Not wired to real credentials, and that's fine under this project's
+  scope:** no Apple Developer Program membership or Android upload
+  keystore exists, so this workflow has never actually run — it's
+  scaffolding, ready for the day it's needed. Per the working
+  assumption above (portfolio build, not an actual store submission),
+  that day isn't expected to come for this project; recorded here so
+  it's an honest, deliberate non-blocker rather than a silently
+  abandoned task. Same for actual Play Console / App Store Connect
+  *submission* — this workflow deliberately stops at producing signed
+  artifacts, not publishing them, which was never in scope either way.
 
 ### Phase 3 — Stand up a real backend ⬜ Not started
 Blocked on the backend-stack decision (§4 — not yet made).

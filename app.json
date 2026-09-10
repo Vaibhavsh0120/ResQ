@@ -59,6 +59,8 @@
       ],
       "expo-notifications",
       "expo-video",
+      "expo-secure-store",
+      "expo-dev-client",
       "@maplibre/maplibre-react-native"
     ],
     "experiments": {

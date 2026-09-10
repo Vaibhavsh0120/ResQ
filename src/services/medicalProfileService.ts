@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as secureStorage from './secureStorage';
 import { config } from '@/config/env';
 import { apiRequest, mockDelay } from './apiClient';
 import { MedicalProfile } from '@/types';
@@ -16,6 +16,12 @@ import { MedicalProfile } from '@/types';
 // mergeProfile alongside saveOnboardingPersonal), so the data survives
 // logout/restart and has somewhere real to be read back from (Profile's
 // new "Medical ID" card).
+//
+// 2026-09-10: this is the single most sensitive domain in the app —
+// allergies, conditions, accessibility needs — so it's the first thing
+// routed through secureStorage.ts's AES-256-GCM-at-rest wrapper (see that
+// file). migrateLegacyPlaintext transparently upgrades an existing
+// install's already-stored plaintext medical profile on first read.
 
 const STORAGE_KEY = '@resq_medical_profile';
 
@@ -28,7 +34,7 @@ const emptyMedicalProfile: MedicalProfile = {
 };
 
 async function readLocal(): Promise<MedicalProfile | null> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const raw = await secureStorage.migrateLegacyPlaintext(STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as MedicalProfile;
@@ -53,7 +59,7 @@ export async function fetchMedicalProfile(): Promise<MedicalProfile | null> {
 
 export async function updateMedicalProfile(profile: MedicalProfile): Promise<MedicalProfile> {
   if (config.useMockData) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    await secureStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
     return mockDelay(profile);
   }
   return apiRequest<MedicalProfile>(config.endpoints.medicalProfile, {

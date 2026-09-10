@@ -35,6 +35,20 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// expo-crypto and expo-secure-store back src/services/secureStorage.ts
+// (encrypted-at-rest storage, added 2026-09-10 — see that file's doc
+// comment). Neither has a jest-expo built-in mock: jest-expo's generic
+// native-module auto-mock leaves AESEncryptionKey.generate() etc. as
+// non-functions, which secureStorage.ts's own try/catch then silently
+// swallows — every read/write would appear to work in a smoke test while
+// actually no-op'ing, which defeats the point of testing it at all. See
+// __tests__/__mocks__/expoCryptoMock.ts (real AES-256-GCM via Node's
+// crypto module, shared with __tests__/secureStorage.test.ts) and that
+// file's own doc comment for why these can't just be imported directly —
+// Jest requires jest.mock() factories to be inline.
+jest.mock('expo-crypto', () => require('./__mocks__/expoCryptoMock').mockExpoCrypto());
+jest.mock('expo-secure-store', () => require('./__mocks__/expoCryptoMock').mockExpoSecureStore());
+
 jest.mock('expo-video', () => ({
   useVideoPlayer: jest.fn(() => ({
     play: jest.fn(),

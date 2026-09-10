@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as secureStorage from './secureStorage';
 import { config } from '@/config/env';
 import { apiRequest, mockDelay } from './apiClient';
 import { mockFamily } from '@/data/mockFamily';
@@ -12,6 +13,14 @@ import { FamilyMember } from '@/types';
 // on the next app restart. This was a pre-existing gap, not something
 // specific to onboarding — fixed here with the same AsyncStorage-backed,
 // seed-once-from-mock pattern already used by notificationsService.ts.
+//
+// 2026-09-10: family member records (names, relationships, phone numbers)
+// are personal data about people who never consented to using this app
+// themselves, so the actual member list is now encrypted at rest via
+// secureStorage.ts (see that file for the design). SEEDED_KEY stays on
+// plain AsyncStorage deliberately — it's a bare boolean bookkeeping flag
+// ("has real data ever been seeded"), not personal data, so encrypting it
+// would add overhead for no real protection.
 
 const STORAGE_KEY = '@resq_family_members';
 // Tracks whether the circle currently held in storage is real user data
@@ -22,7 +31,7 @@ const STORAGE_KEY = '@resq_family_members';
 const SEEDED_KEY = '@resq_family_members_seeded';
 
 async function readLocal(): Promise<FamilyMember[]> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const raw = await secureStorage.migrateLegacyPlaintext(STORAGE_KEY);
   if (raw) {
     try {
       return JSON.parse(raw) as FamilyMember[];
@@ -30,12 +39,12 @@ async function readLocal(): Promise<FamilyMember[]> {
       // Corrupted storage — fall through to reseeding.
     }
   }
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(mockFamily));
+  await secureStorage.setItem(STORAGE_KEY, JSON.stringify(mockFamily));
   return mockFamily;
 }
 
 async function writeLocal(members: FamilyMember[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(members));
+  await secureStorage.setItem(STORAGE_KEY, JSON.stringify(members));
 }
 
 export async function fetchFamily(): Promise<FamilyMember[]> {

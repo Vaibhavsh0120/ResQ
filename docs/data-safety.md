@@ -86,15 +86,34 @@ Everything above is user-entered and mostly skippable:
 ## Security practices to declare
 
 - **Data encrypted in transit:** N/A — nothing is transmitted.
-- **Data encrypted at rest:** Relies on the OS's own at-rest protections
-  for app storage (iOS/Android both encrypt app-private storage by
-  default at the OS level) — ResQ does not add its own additional
-  encryption layer on top of `AsyncStorage`. Worth a real decision once
-  a backend exists and sensitive data (e.g. medical info) might sync
-  off-device.
+- **Data encrypted at rest:** Yes, for the sensitive domains — profile
+  (name/phone/blood type/home area), medical profile (allergies,
+  conditions, accessibility needs), and family circle (names, relationship,
+  phone numbers) are encrypted with AES-256-GCM before being written to
+  `AsyncStorage`, via `src/services/secureStorage.ts` (added 2026-09-10).
+  The encryption key is a random AES-256 key held in the OS Keychain
+  (iOS) / Keystore-backed encrypted storage (Android) via
+  `expo-secure-store`, never written to `AsyncStorage` itself — so
+  inspecting the raw storage (e.g. a rooted device, a debug bridge, an
+  unencrypted device backup) yields ciphertext, not readable medical or
+  personal data. Less sensitive bookkeeping flags (e.g. "has the family
+  list been seeded," guides-read count, notification read-state) remain
+  on plain `AsyncStorage` — encrypting those would add overhead for no
+  real protection benefit, since they carry no personal data.
+  **Real limitation, stated plainly:** this is app-level encryption on
+  top of the OS's own at-rest protection, not a substitute for one —
+  it protects against a different threat (raw storage inspection, not
+  a compromised unlocked device), and it's native-platform-only (iOS/
+  Android/tvOS) — the web build falls back to plain `AsyncStorage`,
+  same as before, since there's no Keychain/Keystore equivalent to hold
+  a key securely in a browser. See `secureStorage.ts`'s own doc comment
+  for the full design and that tradeoff's reasoning.
 - **Users can request data deletion:** Yes, in-app, immediately — see
-  "Delete my account" above. No separate request/wait process exists
-  because none is needed yet.
+  "Delete my account" above. Deletion now also destroys the SecureStore
+  -held encryption key (not just the AsyncStorage ciphertext), so any
+  ciphertext that somehow survives (e.g. a stale backup) becomes
+  permanently unreadable too — a complete erasure, not a partial one.
+  No separate request/wait process exists because none is needed yet.
 - **Independent security review:** No — has not been performed. Flag as
   a pre-launch item once real backend infrastructure exists (Phase 3+).
 
