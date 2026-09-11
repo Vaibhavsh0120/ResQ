@@ -1,452 +1,360 @@
 # AGENT.md — ResQ
 
-Persistent working memory for this project. Read this fully before starting
-any work. `PROGRESS.md` is the detailed session-by-session history (§1 is
-its own "status at a glance" table); this file is the compressed, current-
-state summary — read `PROGRESS.md` only when this file points you to it for
-more detail on something specific.
-
----
+Concise AI/human working memory for this repo. For full historical detail
+and design rationale, see `PROGRESS.md` (this project's own long-form
+session log, ~2000 lines, maintained since before this file existed —
+don't duplicate it here, link into it by §).
 
 ## Project Overview
 
-**ResQ** — a disaster-preparedness / community-safety mobile app: on-device
-SOS alert, live local updates, incident reporting with AI-assisted guidance,
-a family safety circle, nearby safe places, and a conversational safety
-assistant.
+**ResQ** — a personal-safety Expo/React Native app (SOS, medical profile,
+family circle, safe-places finder, disaster guidance). Portfolio/resume-
+quality build, not heading to a real store submission (see PROGRESS.md's
+"Working assumptions"). India-first (emergency number 112, DPDP Act 2023).
+Runs entirely on local mock data — **no backend exists yet**; Phase 3
+(build one from scratch) is the next real unblocked decision.
 
-- **Stack:** Expo (React Native) + expo-router (file-based routing),
-  TypeScript throughout, SDK 57, React 19.2.3 / React Native 0.86.3.
-- **Goal (clarified 2026-09-10, current — trust this over any older-sounding
-  language elsewhere):** a **portfolio/resume-quality build**, not an actual
-  app-store submission. Every phase is still built to a genuinely working,
-  non-placeholder standard — this only narrows which *business/legal* steps
-  (counsel review, public hosting of legal docs, real signing credentials)
-  are in scope, not the engineering bar.
-- **Launch market assumption:** India first — emergency number `112`,
-  DPDP Act 2023, and localization choices are built around this.
-- **No backend exists.** This mobile repo is the entire project today. Every
-  domain runs on local mock data by design (see Architecture) and works
-  fully offline, with zero setup, out of the box.
-- **`node_modules/` is not included in this archive** — run `npm install`
-  before anything else in a new session.
+## Repository Structure
 
----
-
-Repository Root
-├── app/                              # Expo Router routes (file-based navigation)
-│   ├── _layout.tsx                   # Root stack: providers + Stack.Protected auth routing
-│   ├── index.tsx                     # Splash / startup router
-│   ├── login.tsx
-│   ├── register.tsx
-│   ├── forgot-password.tsx
-│   ├── privacy-policy.tsx             # Outside Stack.Protected groups
-│   ├── terms.tsx                      # Outside Stack.Protected groups
-│   │
-│   ├── onboarding/                   # 5-step first-run flow
-│   │   ├── _layout.tsx
-│   │   ├── personal.tsx
-│   │   ├── medical.tsx
-│   │   ├── location.tsx
-│   │   ├── family.tsx
-│   │   └── emergency.tsx
-│   │
-│   ├── (tabs)/                       # Primary tab navigator
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx                 # Home
-│   │   ├── updates.tsx
-│   │   ├── report.tsx
-│   │   ├── family.tsx
-│   │   └── safe.tsx
-│   │
-│   ├── profile.tsx                   # Full-screen, tab bar hidden
-│   ├── chat.tsx                      # Full-screen, tab bar hidden
-│   ├── sos.tsx                       # Emergency SOS
-│   ├── sos-history.tsx               # Local SOS activation history
-│   ├── readiness.tsx
-│   ├── guidance-result.tsx
-│   ├── notifications.tsx
-│   ├── alert-preferences.tsx
-│   ├── privacy-security.tsx
-│   ├── family-member.tsx
-│   ├── place-detail.tsx
-│   └── update-detail.tsx
-│
-├── src/
-│   ├── components/                   # Reusable UI components
-│   │   ├── Header.tsx
-│   │   ├── PrimaryButton.tsx
-│   │   ├── MiniMap.tsx
-│   │   ├── TabBarButtons.tsx
-│   │   ├── LegalDocument.tsx
-│   │   ├── icons.ts
-│   │   └── ...
-│   │
-│   ├── theme/                        # App-wide theme system
-│   │   ├── colors.ts                 # Light/dark design tokens
-│   │   └── ThemeContext.tsx
-│   │
-│   ├── context/                      # Global React contexts
-│   │   ├── AuthContext.tsx
-│   │   └── NavVisibilityContext.tsx
-│   │
-│   ├── types/
-│   │   └── index.ts                  # Shared domain types + RAG-shaped types
-│   │
-│   ├── data/                         # Mock data, one file per domain
-│   │   ├── mock<Domain>.ts
-│   │   └── ...
-│   │
-│   ├── services/                     # Data-fetching / backend integration layer
-│   │   ├── ...
-│   │   └──             # Mock ↔ real implementation switch lives here
-│   │
-│   ├── hooks/                        # Screen-facing hooks
-│   │   ├── use<Domain>.ts
-│   │   └── ...                       # Thin useAsync() wrappers
-│   │
-│   └── utils/                        # Shared utility functions
-│       ├── age.ts                     # DOB / 18+ validation
-│       ├── format.ts
-│       └── location.ts
-│
-├── docs/
-│   └── data-safety.md                # Play Store Data Safety mapping
-│
-├── __tests__/
-│   ├── smoke.test.tsx                # Render/mount every screen
-│   ├── age.test.ts
-│   └── secureStorage.test.ts
-│
-├── .github/
-│   └── workflows/
-│       ├── build-release.yml         # Working unsigned build
-│       └── build-release-signed.yml  # Inert signing scaffold
-│
-├── AGENTS.md                         # Concise project instructions for AI + developers
-├── README.md                         # Developer documentation
-├── package.json
-├── package-lock.json
-├── tsconfig.json
-├── app.json / app.config.*           # Expo configuration
-└── ...
+```
+app/                  expo-router screens (file-based routing)
+  (tabs)/             Home, Updates, Report, Family, Safe places
+  onboarding/          multi-step signup flow
+src/
+  components/         shared UI (Header, MiniMap, icons.ts, ...)
+  services/            mock data services (one per domain; swap point for a real API)
+  hooks/               data-fetching hooks (useAsync-based)
+  context/             React context providers
+  theme/               colors.ts (all tokens), ThemeContext.tsx (light/dark)
+  data/                mock*.ts fixtures
+  types/               shared TS types
+  utils/
+__tests__/             jest-expo smoke tests + a couple of unit suites
+docs/data-safety.md    Play Store Data Safety mapping doc
+```
 
 ## Architecture
 
-**Core data-flow pattern — every domain follows this, no exceptions:**
-```
-Screen → hook (src/hooks/) → service (src/services/) → mock data | real API
-```
-- Screens **never** import a service or mock data directly.
-- Every service checks `config.useMockData` (`src/config/env.ts`) and either
-  returns local mock data or calls `apiRequest()` (`src/services/apiClient.ts`,
-  a thin `fetch` wrapper: base URL injection, JSON encode/decode, timeout,
-  `ApiError`).
-- `config.useMockData` is **one global flag**, not per-domain (flagged as a
-  Phase 4 item, not urgent).
-- Switching a domain to a real backend = editing only that one service file.
-  Adding a new feature = add a type → mock data → service → hook → screen
-  (full recipe in `PROGRESS.md` §5 / README "Adding a new backend-connected
-  feature").
-- No `@tanstack/react-query` — a hand-rolled `useAsync` hook
-  (`src/hooks/useAsync.ts`) every domain hook wraps. `{ data, loading, error,
-  refresh }` shape maps cleanly onto `useQuery` if ever swapped in later.
-
-**Auth & routing** (`app/_layout.tsx`, `src/context/AuthContext.tsx`):
-- Auth is a **stub** — `login()`/`register()` accept any input and always
-  succeed. Real screens correctly read the signed-in `user` object; nothing
-  populates it from a real backend yet (Phase 3).
-- Three navigation states via `Stack.Protected` (SDK 53+): logged-out →
-  login/register/forgot-password; logged-in-not-onboarded → onboarding;
-  logged-in-onboarded → the main app. Guard flips clear navigation history
-  correctly (confirmed against expo-router's own source + official docs) —
-  e.g. sign-out can't be swiped back into.
-- `privacy-policy` / `terms` live **outside every `Stack.Protected` group**
-  (same tier as `index`) — deliberate: expo-router won't register the same
-  screen name twice, and both need to be reachable pre-login and post-login.
-- Guest mode ("Emergency App Access") skips onboarding entirely and gets
-  full SOS access — same `Stack.Protected` group as a real logged-in user.
-
-**Encryption at rest** (`src/services/secureStorage.ts`, added 2026-09-10):
-- Drop-in `getItem`/`setItem` replacement for `AsyncStorage`. Envelope
-  encryption: AES-256-GCM payload (`expo-crypto`), single random key held in
-  `expo-secure-store` (iOS Keychain / Android Keystore) — key never touches
-  AsyncStorage.
-- Wired into the three genuinely sensitive domains only: `profileService.ts`,
-  `medicalProfileService.ts`, `familyService.ts`. Other domains (SOS history,
-  notifications, chat threads, onboarding drafts) stay on plain `AsyncStorage`
-  — not an oversight, just not classified as sensitive enough to warrant it
-  yet; revisit if that judgment call needs revisiting.
-- **Web has no Keychain/Keystore equivalent** — this module honestly falls
-  back to plain `AsyncStorage` on web (`isEncryptionActive()` reports this)
-  rather than faking protection. Same fallback pattern as `MiniMap.tsx`.
-- `migrateLegacyPlaintext()` transparently upgrades any pre-existing plaintext
-  value on first read. `destroyEncryptionKey()` + `AsyncStorage.clear()`
-  together give a real, complete "delete my account" (`localDataService.ts`).
-- Doesn't need a dev-client build — `expo-crypto`/`expo-secure-store` are
-  both in Expo Go already (unlike MapLibre, below).
-
-**Maps** (`src/components/MiniMap.tsx`, one reusable component):
-- **Native:** real MapLibre (`@maplibre/maplibre-react-native`) over
-  OpenFreeMap vector tiles — no API key, no rate limits. Requires a
-  dev-client rebuild; **does not work in plain Expo Go** (native module).
-- **Web:** real map too — `maplibre-gl` + `react-map-gl/maplibre`
-  (`@vis.gl/react-maplibre` under the hood) over the same OpenFreeMap style.
-  Both native and web branches are pulled in via `Platform.OS`-guarded
-  `require()` so neither leaks into the other platform's bundle.
-- **Zero-marker fallback** on either platform: the original static-pin
-  illustration card.
-- Deliberately wired into exactly 3 screens (`safe.tsx`, `place-detail.tsx`,
-  `family-member.tsx` when that person has coordinates on file) — not every
-  screen with a coordinate. `sos.tsx`'s confirmed screen has no map (open
-  stretch item, not required). Full per-screen rationale: `PROGRESS.md` §3.1.
-
-**Theming** (`src/theme/colors.ts` + `ThemeContext.tsx`):
-- Zero hardcoded hex/rgba values anywhere in the app — every color is a
-  named token in `lightColors`/`darkColors`, including precomputed `on*`
-  contrast-safe foreground tokens (`onBrand`, `onDanger`, etc.). New colors
-  go in this file first, both palettes, before use anywhere.
-
-**Types** (`src/types/index.ts`): shared between mock and real implementations.
-`RagSource`, `DisasterGuidance`, `ChatStreamEvent` are RAG-shaped contracts a
-real backend can be built against directly — three domains are explicitly
-designed around retrieval-augmented generation: `guidanceService.ts`
-(`fetchGuidance`), `chatService.ts` (`streamChatReply` — streaming from day
-one, emits `token`/`sources`/`done`/`error` events, **assumes
-newline-delimited JSON**, not SSE — adjust the reader in that file if the
-real backend differs), and `updatesService.ts` (`UpdateAlert.source`).
-`guidance-result.tsx`'s sources + confidence badge is the reference UI
-pattern for citations, already copied into `chat.tsx`.
-
-**No separate `EmergencyContact` type** — onboarding's family-circle and
-emergency-contacts steps write into one shared, de-duplicated `FamilyMember[]`
-list (flagged via `isPrimaryEmergencyContact`), not two overlapping lists.
-SOS messages everyone with a phone number on file, not just flagged contacts.
-
-**Tab bar** (`src/components/TabBarButtons.tsx`): if you touch this file,
-know that a real, previously-shipped-twice bug lived in prop spread order —
-`{...rest}` must come *before* the component's own `style` prop, not after,
-or `TabTrigger`'s forwarded style silently wipes out the layout styles. Fixed
-and verified against expo-router's own official `TabButton` reference impl.
-
----
+- **Expo SDK ~57, expo-router, React 19, RN 0.86.** `react-native-web`
+  for web builds (`expo export --platform web` does real static
+  rendering per-route).
+- **No hardcoded colors** — everything through `src/theme/colors.ts`
+  tokens (`colors.brand`, `colors.onDanger`, etc.). See README's
+  "Theming" section.
+- **Mock-data services** in `src/services/*Service.ts` are the seam for
+  a future real backend — each returns the same shape a real API would.
+- **At-rest encryption**: `src/services/secureStorage.ts` — AES-256-GCM,
+  key in `expo-secure-store`, used for profile/medical/family data.
+- **Platform-specific files**: this project uses RN's standard
+  `.web.tsx` extension resolution (Metro/Expo Router pick the right file
+  per platform automatically) rather than runtime `Platform.OS` branches,
+  where a whole implementation differs by platform — see `MiniMap.tsx`
+  vs `MiniMap.web.tsx` as the reference pattern.
 
 ## Development Commands
 
-```bash
-npm install                              # required first — node_modules not included
-npx expo start                           # press i (iOS sim) / a (Android emu) / w (web)
-npm run test:smoke                       # jest — render-mounts every screen + unit tests
-npx tsc --noEmit                         # type check
-npx expo-doctor                          # config/dependency health check
-npx expo export --platform web           # verify the static web build succeeds
-npx expo prebuild --platform android     # verify native config-plugins resolve
-
-# Maps require a dev-client build (MapLibre is native, not in Expo Go):
-npx expo run:android                     # local toolchain (Android Studio/SDK)
-npx expo run:ios                         # local toolchain, Mac + Xcode only
-npx eas-cli build --profile development --platform android   # cloud build, no local toolchain
 ```
-Re-run `expo run:android`/`run:ios` (not just `expo start`) any time
-`app.json`'s `plugins` array changes — a dev client's native binary doesn't
-rebuild itself on JS reload.
-
----
+npm install                        # postinstall syncs maplibre-gl's worker
+                                    # build into public/vendor/ automatically
+                                    # (see scripts/sync-maplibre-worker.js) —
+                                    # expo install fails in network-restricted
+                                    # sandboxes (hits expo.dev's version-check
+                                    # API), use plain npm install instead
+npx tsc --noEmit                    # typecheck
+npx jest --config jest.config.js    # smoke + unit tests (53 tests)
+npx expo export --platform web      # verifies the web build actually bundles
+npx expo start --web                # dev server (needs a real browser to view)
+npx expo run:ios|android            # native — needs a dev-client build for MapLibre
+npm audit                           # 0 vulnerabilities as of 2026-09-11
+```
 
 ## TODO
 
-Nothing is actively in progress. The one open, unblocked next decision:
-
-1. **Decide the Phase 3 backend stack.** No decision recorded anywhere
-   (checked the full `PROGRESS.md` archive) — genuinely still open. Needed
-   before any backend code can be written.
-2. **Build the backend from scratch** (Phase 3) — this is a from-zero build,
-   not an integration ticket; nothing backend-side exists yet.
-3. **Phase 4 — cut over from mock to real data**, one domain at a time, via
-   each service's existing `if (config.useMockData)` swap point. No
-   screen/hook changes needed anywhere, by design.
-4. Phase 5 (hardening for public release) and Phase 6 (post-launch/scale) —
-   not started, not blocking v1, no detail decided yet.
-
-Everything else (Phases 0–2) is complete — see Completed Work below.
-
----
+Nothing in-flight. Next real unblocked decision is Phase 3 (backend
+stack) — see PROGRESS.md §4's "not yet made" list. The web-map marker fix
+below is verified at the build level only (see Known Gaps) — a real
+browser check is the one thing worth doing before calling the v6 web map
+migration fully done.
 
 ## Completed Work
 
-- **Phase 0 — Stop lying to the user (✅ 2026-09-09).** Every dead
-  button/hardcoded value fixed: Header bell, place-detail Directions/Call,
-  family-member Call/Message/Locate, Privacy & Security export/delete,
-  Login "Forgot?", chat thread loading. Fake "Continue with Google" removed
-  outright rather than faked.
-
-- **Phase 1 — Build the actual safety product (✅ 2026-09-10).** All
-  on-device, zero backend:
-  - **SOS** (`app/sos.tsx`): 2.5s press-and-hold trigger → `tel:112` +
-    per-contact SMS, logged locally, viewable at `/sos-history`. Real Maps
-    link in SMS/log when GPS is available.
-  - **Onboarding persistence**: every step now writes a real AsyncStorage
-    draft; completion merges into real `profileService`/`familyService`
-    stores. Surfaced and fixed two pre-existing bugs: `familyService.ts` and
-    `profileService.ts` previously only held in-memory state (edits lost on
-    restart) — both are now durably persisted.
-  - **Real device location** (`useDeviceLocation.ts`, request-based, not a
-    watcher) feeds `useCurrentArea()`, safe-places distance sort, report
-    location seed, SOS Maps link.
-  - **Chat sources parity**, **`FamilyMember.inviteStatus`**,
-    **DOB/bloodType in Profile's edit form**, **Medical ID display card**
-    (surfaced a real bug: `MedicalProfile` had no durable storage at all —
-    fixed via new `medicalProfileService.ts`), **camera capture** for
-    incident reports, **local check-in reminder notification** (real
-    one-off 24h `expo-notifications` schedule, not a fake repeating alarm).
-  - **Real maps**, native (MapLibre + OpenFreeMap) then web
-    (`maplibre-gl` + `react-map-gl`) — see Architecture above.
-
-- **Phase 2 — Legal, privacy & store-compliance baseline (✅ 2026-09-10,
-  portfolio scope).** Everything codeable is done:
-  - In-app **Privacy Policy / Terms** (`app/privacy-policy.tsx`,
-    `terms.tsx`, via `LegalDocument.tsx`) — real, app-specific content,
-    checked against actual AsyncStorage keys and `app.json` permissions,
-    not boilerplate. Linked from login/register footers + Privacy & Security.
-  - **18+ registration gate** (`src/utils/age.ts`, wired into
-    `register.tsx`) — decided over a fake consent checkbox because DPDP Act
-    2023 requires *verifiable* parental consent this app has no backend to
-    verify against. 11 unit tests cover leap years, exact-boundary
-    birthdays, malformed input.
-  - **`docs/data-safety.md`** — Play Console Data Safety mapping, every row
-    cites its actual source file/storage key.
-  - **`.github/workflows/build-release-signed.yml`** — real signed-build
-    scaffolding (Android AAB + iOS IPA), gated on GitHub secrets that don't
-    exist yet; `check-secrets` job fails fast naming what's missing.
-    Deliberately inert — see Known Gaps.
-  - **Encryption at rest** — see Architecture's "Encryption at rest" above;
-    closed the Data Safety doc's previously-flagged gap.
-
-Full per-item detail and session dates for all of the above: `PROGRESS.md`
-§3 (Phase detail). §8 (archive) is old, fully-superseded session logs —
-skip it unless tracing the history of a specific old fix.
-
----
+- **Phases 0–2 complete** (stop-lying-to-the-user pass, full safety
+  product, legal/privacy baseline) — see PROGRESS.md §1 for the table.
+- **Real maps, both platforms.** `src/components/MiniMap.shared.tsx` +
+  `MiniMap.tsx` (native, MapLibre RN + OpenFreeMap) +
+  `MiniMap.web.tsx` (web, MapLibre GL JS v6 + the same OpenFreeMap
+  tiles) — wired into `safe.tsx`, `place-detail.tsx`, `family-member.tsx`,
+  and (2026-09-11) `sos.tsx`'s confirmed screen. See PROGRESS.md §3.1 for
+  the original SDK-choice rationale and "Important Decisions" below for
+  the 2026-09-11 v5→v6 security bump.
+- **Web markers weren't rendering — missing `.maplibregl-marker` CSS
+  (2026-09-11).** User-reported: map tiles rendered on web but no markers
+  appeared. Root cause: `maplibre-gl`'s `Marker` class only ever writes
+  `element.style.transform = 'translate(...)'` on its wrapper element
+  (confirmed directly in `node_modules/maplibre-gl/dist/maplibre-gl.mjs`)
+  — it relies entirely on `maplibre-gl.css`'s `.maplibregl-marker{
+  position:absolute; top:0; left:0; }` rule to give that transform an
+  absolute-positioning base. `MiniMap.web.tsx` deliberately never imports
+  that stylesheet (see "Important Decisions" below for why) and had only
+  ported the canvas cursor rules into its own injected `<style>` tag, not
+  this one — so every marker existed in the DOM with a correct transform
+  but rendered in normal document flow instead of at its intended pixel
+  position. Two other hypotheses were checked and ruled out first: a v6
+  API change to `isStyleLoaded()`/the `'load'` event (checked against the
+  installed v6.9.0 source directly — semantics unchanged from v5, not the
+  cause), and the "office"/"gate" `setMissingStyleImageResolver()`
+  console warnings the user saw (confirmed as unrelated: OpenFreeMap's
+  own vector style failing to resolve two unused POI sprite icons, no
+  connection to `Marker` instances, which are separate DOM elements, not
+  style-driven symbols). Fix: added the one load-bearing
+  `.maplibregl-marker` rule to `ensureCanvasStyle()`'s existing injected
+  `<style>` tag (not a full `maplibre-gl.css` import — see that function's
+  comment for why just this rule). Verified at the build level (see Known
+  Gaps for what that does and doesn't confirm): `tsc --noEmit` clean, all
+  53 jest tests pass, `expo export --platform web` bundles all 34 routes,
+  and the exported bundle was grepped to confirm
+  `.maplibregl-marker{position:absolute` is present in the output JS.
+- **`sos.tsx` confirmed screen now shows a MiniMap (2026-09-11)** of the
+  user's live coordinates (`kind: 'danger'`), same component/pattern as
+  every other call site; hidden entirely when no GPS fix is available.
+  Closes the "no map on SOS confirmed screen" gap.
+- **`useAsync.ts` stale-response race fixed (2026-09-11).** `refresh()`
+  and the mount/deps-change effect now share one call-id guard instead of
+  each having its own throwaway `cancelled` closure — previously, calling
+  `refresh()` while an earlier call (mount, or a prior `refresh()`) was
+  still in flight let the stale response resolve after the fresh one and
+  silently overwrite newer data. Real, reachable path: `sos.tsx`'s
+  `fire()` then `finalizeAndClose()` both call `useSosHistory().logEvent`
+  → `refresh()` in quick succession. Regression test:
+  `__tests__/useAsync.test.ts` (confirmed it fails against the pre-fix
+  implementation, passes against the fix).
+- **`npm audit`: 0 vulnerabilities (2026-09-11)**, down from 16 (15
+  moderate + 1 critical). See "Important Decisions" below for what each
+  fix actually was and why `--force` was deliberately not used.
+- **At-rest encryption** for profile/medical/family data
+  (`secureStorage.ts`).
+- **Signed release build workflow** exists but has no real credentials
+  wired in (portfolio-scope, not a blocker — see PROGRESS.md §3.2).
 
 ## Known Gaps
 
-- **Auth is a stub.** Any credentials work. Real validation needs Phase 3.
-- **No backend at all.** Every "real" behavior below is on-device only.
-- **`FamilyMember.latitude`/`.longitude` are static snapshots**, not live
-  tracking — no backend yet for a member's own device to report position.
-- **SOS history, notifications, chat threads, onboarding drafts are not
-  encrypted at rest** (plain AsyncStorage) — only profile/medical/family
-  went through `secureStorage.ts`. Deliberate scope, not yet revisited.
-- **Signed release workflow has no real credentials wired in** — Apple
-  Developer Program / Play Console accounts don't exist for this project.
-  Not a blocker under the portfolio-scope goal; see `.github/workflows/README.md`
-  for exactly what a human would need to provide to activate it.
-- **Legal docs (Privacy Policy/Terms) aren't hosted at a public URL and
-  haven't had counsel review.** Same non-blocker status as above.
-- **`sos.tsx`'s confirmed screen has no map** — open stretch item from the
-  maps work, never required.
-- **`report.tsx`'s location field is free text**, not structured — no map
-  there by design (a map doesn't clarify an editable text field).
-- **No unit tests for services/hooks in isolation** beyond `age.ts` and
-  `secureStorage.ts` — the render-smoke suite mounts every screen and waits
-  out its mock fetch, but doesn't unit-test the mock/real service switch
-  directly. Good first target for new test coverage.
-- **`readinessService.ts`'s score is a straight checklist-completion
-  percentage** — an explicit placeholder; a real backend should factor in
-  more than the checklist (profile completeness, check-in recency, etc.).
-
----
+- **No backend.** Everything is mock data today.
+- **Web map v6 migration + the marker-CSS fix above are both verified at
+  the build/bundle level only** — `tsc`, the full jest suite, and a real
+  `expo export --platform web` all pass; the exported `dist/` was grepped
+  to confirm `setWorkerUrl()` is called, `/vendor/maplibre-gl-worker.mjs`
+  is baked into the bundle, `dist/vendor/*.mjs` exist and are
+  byte-identical (`md5sum`-verified) to `node_modules/maplibre-gl/dist/`,
+  and (2026-09-11) that `.maplibregl-marker{position:absolute` is present
+  in the exported JS — but actual pixel rendering (does the worker load
+  and render tiles, and do markers actually appear at the right spot,
+  when a real browser hits a running server?) still hasn't been visually
+  confirmed (no browser in this sandbox). Jest can't cover this either —
+  see the `jest-expo`/`Platform.OS` finding below, `MiniMap.web.tsx` is
+  never exercised by the test suite at all. Check the browser console on
+  `localhost:8081/safe` first: if tiles don't load, check the Network tab
+  for a 404 on `/vendor/maplibre-gl-worker.mjs` (static file not served);
+  if tiles load but markers still don't appear, open devtools and inspect
+  whether a `.maplibregl-marker` element exists with a `transform` style
+  but computed `position: static` (would mean the injected `<style>` tag
+  isn't winning — check for a specificity/load-order conflict) rather than
+  assuming the CSS fix itself was wrong.
+- Signed-release workflow has no real credentials; legal docs aren't
+  publicly hosted or counsel-reviewed — both fine under this project's
+  portfolio scope, both real gaps if that scope ever changes (see
+  PROGRESS.md §3.2).
+- No eslint config exists in the repo (`npm run lint` / `expo lint` would
+  prompt to create one interactively) — not treated as a gap under this
+  project's portfolio scope, noting it here so it isn't mistaken for an
+  oversight next time someone looks for a lint command.
 
 ## Resume Here
 
-**Next real task: decide the Phase 3 backend stack**, then start building it
-from scratch. Nothing is blocking this except the decision itself — no
-partial backend work exists to pick back up.
-
-Before writing backend code:
-1. `npm install` (no `node_modules/` shipped in this archive).
-2. Skim `PROGRESS.md` §4 (Decisions log) and §5 (recipe for adding a
-   backend-connected feature) — the service-layer contract every domain
-   already expects is defined there and in `src/services/apiClient.ts` /
-   `src/config/env.ts`.
-3. Whatever stack is chosen, the frontend contract is already fixed:
-   `src/types/index.ts` (especially the RAG-shaped types) and each
-   service's real-branch stub (`apiRequest(config.endpoints.*)`) define
-   the exact request/response shapes the backend needs to satisfy — no
-   frontend changes should be needed for a correctly-shaped backend.
-4. Chat's real branch assumes **newline-delimited JSON** streaming, not
-   SSE — either build the backend to match, or update the reader in
-   `chatService.ts` if SSE is preferred.
-
-Once Phase 3 has a real backend for even one domain, Phase 4 cutover for
-that domain is: flip `config.useMockData` logic (or just set
-`EXPO_PUBLIC_API_BASE_URL`) and delete that domain's mock branch — no
-screen or hook changes expected.
-
----
+No open task, but the web map (v6 migration + the 2026-09-11 marker-CSS
+fix) is the one thing in this repo that's only been verified at the build
+level, never in a real browser — if picking this up next, `npx expo start
+--web` and actually open `/safe` (or any MiniMap screen) first, and
+confirm markers are now visible, before touching anything else. Otherwise:
+read PROGRESS.md §1 (status table) for the phase overview, then whichever
+§3.x section matches what you're about to touch.
 
 ## Important Decisions
 
-- **Portfolio-build scope (2026-09-10).** This project is not heading to a
-  real store submission. Changes which business/legal steps are in scope
-  (counsel review, public doc hosting, real signing creds — all deferred),
-  not the engineering bar (still built to a genuinely working standard).
-- **No separate `EmergencyContact` type** — merged into `FamilyMember` +
-  `isPrimaryEmergencyContact` flag. Tradeoff: assumes every emergency
-  contact is conceptually part of the family circle.
-- **Map SDK: MapLibre + OpenFreeMap** (native), **maplibre-gl + react-map-gl**
-  (web) — chosen over `react-native-maps` specifically to avoid needing a
-  Google Maps API key on Android. Full rationale + live re-verification
-  notes: `PROGRESS.md` §3.1.
-- **Maps scoped to exactly 3 screens**, not "everywhere there's a
-  coordinate" — a deliberate, user-requested scope limit.
-- **Guest mode gets full SOS access**, same as a registered user — a
-  side effect of guest sessions sharing the same `Stack.Protected` group as
-  logged-in users, not a specifically-reasoned SOS choice. Worth revisiting
-  if a future session wants to narrow guest capabilities.
-- **Minimum age: 18, enforced client-side at registration.** DPDP Act 2023
-  requires verifiable parental consent this app can't yet verify — treat
-  this as "an honest, good-faith gate," not a compliance guarantee, until
-  Phase 3 can support real identity/consent verification.
-- **Legal screens live outside every `Stack.Protected` group** — not
-  duplicated per-group (expo-router disallows duplicate screen names
-  anyway; both screens genuinely need pre- and post-login reachability).
-- **Signed release builds built as inert scaffolding, not skipped
-  entirely** — real credentials are a human/paid decision, not something to
-  fake or guess at.
-- **Envelope encryption over a custom cipher** for at-rest protection — key
-  in OS-native secure storage, ciphertext in AsyncStorage, honest plaintext
-  fallback on web rather than fake protection there.
-
----
+- **Map SDK: MapLibre + OpenFreeMap** (not `react-native-maps`, not
+  Google/Apple Maps) — no API key needed on any platform. Native uses
+  `@maplibre/maplibre-react-native@^11.3.10`.
+- **Web map SDK: `maplibre-gl` v6 (bumped from v5 on 2026-09-11)** — v5
+  was originally kept specifically to avoid v6's ESM-only Web Worker
+  problem (see below), but v5 has no fix for CVE-2026-85061
+  (GHSA-jrc7-96c5-q579, CVSS 10, XSS sanitizer bypass in the built-in
+  attribution control's `innerHTML` path — fixed in 6.4.1+, no v5
+  backport exists and none is planned). Since this app already runs with
+  `attributionControl: false` on web (and `attribution={false}` on
+  native), the actual exploit path was never reachable here — but "we
+  think we're not exploitable" isn't the same as "patched," and staying
+  on a version npm audit flags as critical isn't defensible just because
+  of that. Pinned exact to `6.9.0` (`--save-exact`, no `^` — see below
+  for why).
+  - **The ESM/worker problem this used to avoid, and how it's actually
+    solved now:** v6 ships ESM-only and needs `setWorkerUrl()` called
+    before the first `new Map(...)`. The bundler-specific ways to get
+    that URL (Vite's `?worker&url`, webpack/Rspack's `new URL(...,
+    import.meta.url)`) have no Metro equivalent — that part of the old
+    reasoning was correct and is still true. But MapLibre's own docs
+    describe a third option for exactly this case: serve the worker file
+    yourself and pass a plain string path. This app does that:
+    `scripts/sync-maplibre-worker.js` copies
+    `maplibre-gl-worker.mjs` + `maplibre-gl-shared.mjs` (the worker
+    imports the shared chunk by relative path, so both must be
+    co-located) from `node_modules/maplibre-gl/dist/` into
+    `public/vendor/` — Expo Router's root `public/` directory is copied
+    verbatim to `dist/` during `expo export --platform web` and served
+    from the site root on both the dev server and a real deployment — and
+    `MiniMap.web.tsx` calls `setWorkerUrl('/vendor/maplibre-gl-worker.mjs')`
+    before constructing the map. `public/vendor/` is gitignored (fully
+    reproducible from `node_modules`) and the sync script runs via
+    `postinstall`, so it can't drift out of sync with whatever
+    `maplibre-gl` version is actually installed — **which is also why
+    the version is pinned exact rather than a caret range**: an
+    unpinned bump could otherwise update the SDK in `node_modules` on
+    some future `npm install` without anyone re-running the sync step in
+    the same moment, and a worker-build/main-bundle version mismatch is
+    exactly the kind of thing that fails silently.
+  - **v6's other breaking changes, and what each one means here:**
+    WebGL1 support is dropped (WebGL2-only) — `MiniMap.web.tsx` now
+    catches the `Map` constructor throwing and falls back to the
+    existing static-pin illustration instead of crashing. Named imports
+    (`import { Map, Marker, LngLatBounds } from 'maplibre-gl'`, already
+    what this file used) are unaffected. The two other API changes v6
+    made (`styleimagemissing` → `setMissingStyleImageResolver`,
+    `map.transform` removed) aren't used anywhere in this codebase.
+  - Full migration detail and comments live directly in
+    `src/components/MiniMap.web.tsx` — read that file's top-of-file
+    comment before touching it again, it's more complete than this
+    summary.
+- **`npm audit` fixes taken individually, not via `--force`
+  (2026-09-11).** `npm audit fix --force` on this project suggests
+  downgrading `expo` from `~57.0.21` to `46.0.21` and `expo-router` to
+  `5.1.11` — npm's resolver matching against stale advisory version
+  ranges, not a real fix; taking it would have been actively worse than
+  doing nothing. What was actually done instead:
+  - `maplibre-gl` critical CVE: see above (real fix, needed the v6 jump).
+  - `decode-uri-component` DoS (GHSA-vcc3-ghjq-m6fr, moderate) — reachable
+    through `expo-router@57.0.20`'s own URL-path parsing (a crafted deep
+    link could freeze the client JS thread; no data exposure). expo-router
+    57.0.20 is already the newest 57.x release and itself pins
+    `query-string: ^7.1.3` (which pins the vulnerable
+    `decode-uri-component`), so there's no non-breaking upgrade path
+    through expo-router directly. Fixed via a `package.json` `overrides`
+    entry forcing `decode-uri-component@^0.5.0` — safe because only
+    `decodeUriComponent()`'s basic decode/error-handling behavior is used
+    anywhere in this dependency chain, unchanged across that version gap.
+  - `uuid` bounds-check bug (GHSA-w5hq-g745-h8pq, moderate) — only
+    reachable through `xcode` (used by `@expo/config-plugins` to generate
+    the native iOS project during `expo prebuild`/`expo run:ios` — build
+    tooling that runs on a developer machine, never shipped in the app
+    itself). `xcode`'s only use of the package is `uuid.v4()`
+    (`node_modules/xcode/lib/pbxProject.js`), an API stable across every
+    `uuid` major version. Fixed via `overrides: { "uuid": "^11.1.1" }`.
+  - Verified via a genuine `npm ci` from a clean `node_modules/` (matching
+    what a real clone would do): `npm audit` → 0 vulnerabilities, `tsc
+    --noEmit` clean, all 53 jest tests pass, `expo export --platform web`
+    bundles all 34 routes.
+- **`maplibre-gl.css` is never imported** on web — only styles chrome
+  this app doesn't use (default markers, nav/popup controls); the two
+  rules that matter (cursor, touch-action) are injected as a 2-line
+  `<style>` tag instead, sidestepping an unverified node_modules
+  CSS-import path through Metro. (Also now doubles as one more reason
+  this app was never on the exploitable path for CVE-2026-85061 above —
+  the vulnerable code was inside the attribution control, which this app
+  disables outright on both platforms.)
+- **Platform-specific files over runtime branches** for anything where
+  native and web genuinely need different implementations (not just
+  different styling) — see `MiniMap.tsx`/`MiniMap.web.tsx`. Prefer this
+  pattern over a `Platform.OS` conditional `require()` when the two
+  paths are substantial, since Metro excludes the other platform's file
+  from the bundle entirely rather than just skipping it at runtime.
+- **Project goal clarified as portfolio-quality, not a real store
+  launch** — changes which Phase 2/5 items are real blockers vs. already
+  "complete enough." See PROGRESS.md's "Working assumptions."
+- Full list of smaller decisions (encryption scheme, theming convention,
+  data-safety mapping, etc.) — see PROGRESS.md §1 and the relevant §3.x.
 
 ## Verified Findings
 
-*(Confirmed in a working sandbox with real network/npm access on
-2026-09-10 — re-verify if a long time has passed or the environment
-differs.)*
-
-- **51/51 tests passing** baseline: 28 render-smoke + 11 `age.ts` unit +
-  12 `secureStorage.ts` unit tests.
-- `npx tsc --noEmit` clean.
-- `npx expo-doctor`: 19–20/21 in network-restricted sandboxes (the 1–2
-  failures are Expo's own remote validation servers being blocked by
-  sandbox network policy — not project bugs); expect 21/21 on a normal
-  machine with full network access.
-- `npx expo export --platform web` succeeds for real, produces a separate
-  `maplibre-gl-*.css` (~83KB) and `maplibre-gl-*.js` (~1.1MB) chunk
-  alongside the entry bundle, across all 34 static routes.
-- `npx expo prebuild --platform android` succeeds with the MapLibre config
-  plugin registered.
-- Dependency versions in `package.json` are matched against
-  `node_modules/expo/bundledNativeModules.json` (the manifest Expo itself
-  ships) rather than guessed ranges.
-- `Stack.Protected`'s guard-flip history-clearing behavior was confirmed by
-  reading expo-router's actual source, not assumed — cross-checked against
-  Expo's official docs (dated after this app's SDK 57 release).
-- `maplibre-gl@^6.9.0` is ESM-only (`"type": "module"`, no CJS build) and
-  resolves under Metro because `unstable_enablePackageExports: true` is the
-  metro-config default at this project's installed version — no extra
-  Metro config was needed for this.
-- This project's installed `@expo/metro-config` (57.0.12) defaults
-  `isCSSEnabled: true`, so `maplibre-gl`'s CSS import needs no loader config.
+- `expo install` fails in network-restricted sandboxes (hits expo.dev's
+  version-compatibility API, not npm) — use plain `npm install
+  <pkg>@<version>` instead; confirm the version is real first with
+  `npm view <pkg> versions`.
+- `jest-expo`'s default test platform reports `Platform.OS === 'ios'`,
+  not `'web'` — a `.web.tsx` platform-file sibling is never picked up by
+  the existing Jest config; native `.tsx` files are what smoke tests
+  actually exercise. (This also means Jest never exercises
+  `MiniMap.web.tsx`/the v6 worker wiring — that whole file's correctness
+  rests on the `expo export` bundle checks above, not on test coverage.)
+- `maplibre-gl` v6 is pure ESM (`package.json` has no `main`/CJS entry,
+  only `"type": "module"` + `exports["."].import`) and exports
+  `Map`/`Marker`/`LngLatBounds`/`setWorkerUrl` etc. as named exports —
+  the same `import { Map, Marker, LngLatBounds } from 'maplibre-gl'` style
+  already used here works unchanged from v5. (v5 was CJS/UMD with the
+  same named-export shape; only the module system underneath changed.)
+- `maplibre-gl`'s npm package ships `dist/maplibre-gl-worker.mjs` and
+  `dist/maplibre-gl-shared.mjs` (the worker imports the shared chunk by
+  relative path — both files must be copied together, copying just the
+  worker breaks it) — confirmed by installing v6.9.0 into a scratch
+  directory and inspecting `dist/`.
+- Expo's base tsconfig (`expo/tsconfig.base.json`) already includes
+  `"lib": ["DOM", "ESNext"]`, so plain DOM JSX intrinsics (`<div>`,
+  `<style>`) and DOM types type-check fine in `.web.tsx` files with no
+  extra tsconfig changes.
+- `npx expo export --platform web` renders each route through a
+  Suspense boundary that resolves to an empty shell in the static HTML
+  (real content only appears after client hydration) — true across
+  every route (checked `login.html` too, not just map screens), so an
+  "empty" static HTML body is expected here, not a bug.
+- Expo Router's root `public/` directory is copied verbatim into `dist/`
+  during `expo export --platform web` (confirmed: `public/vendor/*.mjs`
+  → `dist/vendor/*.mjs`, byte-identical via `md5sum`) and is also served
+  from the site root by `expo start --web`'s dev server — this is what
+  makes the `setWorkerUrl('/vendor/...')` static-file approach above
+  work in both dev and the exported build without any bundler-specific
+  wiring.
+- `npm audit fix --force` is not reliable on this project as of
+  2026-09-11 — it matches against advisory version ranges that don't
+  correspond to any real available fix for the installed Expo SDK 57
+  line, and following it would downgrade `expo`/`expo-router` by
+  10+ majors. Check what it actually proposes (`--dry-run`) before ever
+  running it for real here; prefer targeted `overrides` entries once
+  you've confirmed the fixed version is API-compatible with how the
+  vulnerable transitive dependency is actually used.
+- `@testing-library/react-native@14.0.1`'s `renderHook`/`act` (imported
+  from the package root) work fine under this project's `jest-expo`
+  preset for testing plain hooks (no component needed) — both are
+  async (`await renderHook(...)`, `await act(async () => {...})`); see
+  `__tests__/useAsync.test.ts` for the pattern (controlling promise
+  resolution order to test race conditions).
+- `@maplibre/maplibre-react-native`'s `MLRNCameraModule` crash in Expo Go
+  (documented, expected — see README's "Running with maps (dev-client
+  build)") has a cascading symptom worth recognizing: when
+  `require('@maplibre/maplibre-react-native')` throws at the top of
+  `MiniMap.tsx`, every route file that imports `MiniMap` (`family-
+  member.tsx`, `place-detail.tsx`, `sos.tsx`, `(tabs)/safe.tsx`) never
+  finishes evaluating either, so expo-router logs a separate `Route "..."
+  is missing the required default export` warning for each one — even
+  though all four genuinely have a normal `export default function ...`.
+  This is downstream noise from the same root cause, not a real routing
+  regression; don't go looking for a missing export in those files if you
+  see this warning; look for the `MLRNCameraModule` error above it in the
+  log instead.
+- `maplibre-gl` v6.9.0's `Marker` class positions its wrapper element
+  purely via `element.style.transform = 'translate(...)'` — confirmed
+  directly in `node_modules/maplibre-gl/dist/maplibre-gl.mjs`'s marker
+  update path. It never sets `position` inline; that's the job of
+  `maplibre-gl.css`'s `.maplibregl-marker{position:absolute;top:0;left:0;}`
+  rule. An app that skips importing that stylesheet (as this one does,
+  deliberately — see "Important Decisions") must still carry that one
+  rule itself, or markers exist in the DOM with a correct transform but
+  render in normal document flow instead of at the intended position.
+  `Map.isStyleLoaded()`/the `'load'` event kept the same semantics from
+  v5 to v6 (also confirmed directly against the installed dist) — not
+  related to this bug, checked and ruled out first.

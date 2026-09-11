@@ -5,6 +5,12 @@ web-build/
 expo-env.d.ts
 *.orig.*
 
+# maplibre-gl's worker build, synced from node_modules by
+# scripts/sync-maplibre-worker.js (runs via postinstall) — see the
+# SDK-choice comment in src/components/MiniMap.web.tsx. Regenerated on
+# every `npm install`/`npm ci`, so committing it would just go stale.
+public/vendor/
+
 # macOS
 .DS_Store
 

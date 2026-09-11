@@ -11,6 +11,7 @@ import { useCurrentArea } from '@/hooks/useCurrentArea';
 import { useSosHistory } from '@/hooks/useSosHistory';
 import { mapsLinkForCoords } from '@/utils/location';
 import { useHideTabBar } from '@/context/useHideTabBar';
+import { MiniMap } from '@/components/MiniMap';
 
 // India's unified emergency number — see PROGRESS.md's launch-market note
 // (India first). Revisit this constant if/when ResQ supports other regions.
@@ -60,6 +61,14 @@ function notifyHaptic() {
  * denied, still loading, etc.) — this is the change onboarding's own
  * emergency-contacts copy ("immediately alerted with your live location")
  * has been promising since before Phase 1 started.
+ *
+ * **2026-09-11**: the confirmed screen now shows a MiniMap of the user's
+ * live coordinates (same component/pattern as safe.tsx, place-detail.tsx,
+ * family-member.tsx) when a GPS fix is available, so the location being
+ * shared is visible, not just implied by the SMS/history text. Hidden
+ * entirely when no fix is available (permission denied, still loading) —
+ * consistent with how every other MiniMap call site in this app handles
+ * missing coordinates.
  */
 export default function Sos() {
   useHideTabBar();
@@ -255,6 +264,17 @@ export default function Sos() {
               This is logged in your SOS history. Now reach the people who can actually help:
             </Text>
 
+            {hasCoords && (
+              <View style={styles.mapWrap}>
+                <MiniMap
+                  markers={[{ id: 'self', latitude: latitude as number, longitude: longitude as number, kind: 'danger' }]}
+                  height={150}
+                  zoom={14}
+                  accessibilityLabel="Map showing your current location, shared with the SOS alert"
+                />
+              </View>
+            )}
+
             <Pressable
               onPress={callEmergency}
               style={[styles.actionRow, { backgroundColor: colors.danger }]}
@@ -401,6 +421,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     alignItems: 'center',
     gap: 4,
+  },
+  mapWrap: {
+    width: '100%',
+    marginTop: 16,
   },
   confirmedBadge: {
     width: 60,

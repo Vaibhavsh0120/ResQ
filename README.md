@@ -343,20 +343,26 @@ up with no code changes. Two screens use the real coordinates directly:
 
 ### Maps
 
-`src/components/MiniMap.tsx` is the shared map surface used by
-`safe.tsx`, `place-detail.tsx`, and `family-member.tsx` — deliberately
-just those three (not every screen with a coordinate) to keep maps to
-places they add real value, not decoration.
+The shared map surface used by `safe.tsx`, `place-detail.tsx`, and
+`family-member.tsx` — deliberately just those three (not every screen
+with a coordinate) to keep maps to places they add real value, not
+decoration. Split by platform: `src/components/MiniMap.shared.tsx` (types
++ the static-pin fallback, used by both), `src/components/MiniMap.tsx`
+(native), `src/components/MiniMap.web.tsx` (web) — Metro/Expo Router picks
+the right one automatically per platform.
 
 - **Native**: a real MapLibre (`@maplibre/maplibre-react-native`) map
   over [OpenFreeMap](https://openfreemap.org) vector tiles — no API key,
   no request/view limits by the operator's own policy. Requires a
   dev-client rebuild (`expo prebuild`); **does not work in plain Expo
   Go**, since it's native code, not part of the Expo SDK.
-- **Web**: MapLibre React Native has no web renderer at all, so
-  `MiniMap` falls back to the same stylized static-pin illustration
-  `safe.tsx`/`place-detail.tsx` used before this component existed —
-  `expo export --platform web` keeps working unchanged.
+- **Web**: also a real interactive map — `maplibre-gl` (the JS SDK,
+  pinned to the v5 line; v6 is ESM-only and needs bundler-specific Web
+  Worker wiring Metro doesn't support) over the same OpenFreeMap tiles.
+  Works in a plain browser, no dev-client build needed. `MiniMap` only
+  falls back to the stylized static-pin illustration when there are no
+  valid coordinates to show at all (e.g. a family member with no
+  location on file yet) — same fallback on both platforms in that case.
 - `family-member.tsx`'s map only renders when that person actually has
   `latitude`/`longitude` on file (added alongside the existing free-text
   `lastKnownLocation`, not replacing it) — there's no backend yet for a
