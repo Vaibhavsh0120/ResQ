@@ -70,7 +70,7 @@ export default function Updates() {
               return (
                 <Pressable
                   key={id}
-                  onPress={() => router.push({ pathname: '/update-detail', params: { id } })}
+                  onPress={() => router.replace({ pathname: '/update-detail', params: { id } })}
                   style={[styles.card, { borderColor: colors.line, backgroundColor: colors.surface }]}
                 >
                   <View style={[styles.cardIcon, { backgroundColor: toneBg(tone) }]}>
@@ -97,7 +97,7 @@ export default function Updates() {
 
         <View style={styles.topicGrid}>
           <Pressable
-            onPress={() => router.push('/readiness')}
+            onPress={() => router.replace('/readiness')}
             style={[styles.topicCard, { borderColor: colors.line, backgroundColor: colors.surface }]}
           >
             <ShieldCheck size={19} color={colors.brand} />
@@ -105,7 +105,7 @@ export default function Updates() {
             <Text style={[styles.topicSubtitle, { color: colors.inkMuted }]}>2 min check-in</Text>
           </Pressable>
           <Pressable
-            onPress={() => router.push('/alert-preferences')}
+            onPress={() => router.replace('/alert-preferences')}
             style={[styles.topicCard, { borderColor: colors.line, backgroundColor: colors.surface }]}
           >
             <Bell size={19} color={colors.brand} />

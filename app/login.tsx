@@ -55,7 +55,7 @@ export default function Login() {
   };
 
   const onGoToRegister = () => {
-    router.push('/register' as any);
+    router.replace('/register' as any);
   };
 
   return (

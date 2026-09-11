@@ -31,7 +31,10 @@ export default function AlertPreferences() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Alert preferences" onBack={() => router.back()} />
+      <Header
+        title="Alert preferences"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/updates'))}
+      />
       <Screen>
         <View style={styles.intro}>
           <Eyebrow>CHOOSE WHAT MATTERS</Eyebrow>

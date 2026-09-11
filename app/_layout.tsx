@@ -6,6 +6,20 @@ import { ThemeProvider, useAppTheme } from '@/theme/ThemeContext';
 import { NavVisibilityProvider } from '@/context/NavVisibilityContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 
+// `index` (the splash/video screen) is declared first below and sits
+// outside every Stack.Protected group, which by default makes it Expo
+// Router's "anchor" route — the screen a guard-driven redirect falls
+// back to when it can't resolve one more specifically. That fallback is
+// exactly what replayed the startup video on every logout/sign-up
+// (app/index.tsx has its own defense against that now too, via a
+// module-level "already played" flag) — pointing the anchor at `login`
+// instead means Router's own fallback lands somewhere sensible in the
+// first place, rather than only relying on index.tsx noticing it's been
+// revisited.
+export const unstable_settings = {
+  anchor: 'login',
+};
+
 // Auth-gated navigation tree, using expo-router's Stack.Protected (SDK 53+).
 //
 // Previously every screen was declared as a single always-available

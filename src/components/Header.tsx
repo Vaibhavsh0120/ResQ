@@ -27,7 +27,11 @@ type Props = {
   onProfilePress?: () => void;
   /** Show a back arrow on the left instead (used only by screens reached by drilling in). */
   onBack?: () => void;
-  action?: React.ReactNode;
+  /** Custom header-right content. Pass `null` explicitly to render no
+   * action at all (e.g. notifications.tsx, which would otherwise show a
+   * bell button that just re-opens itself). Leave unset to get the
+   * default notifications-bell button. */
+  action?: React.ReactNode | null;
   /** Overrides the auto-derived initials below. Rarely needed — Header already reads the signed-in user. */
   initials?: string;
 };
@@ -71,7 +75,9 @@ export function Header({ title, showProfile = false, onProfilePress, onBack, act
         )}
       </View>
 
-      {action ?? (
+      {action !== undefined ? (
+        action
+      ) : (
         <IconButton label="Notifications" onPress={() => router.push('/notifications')} muted>
           <Bell size={18} color={colors.inkMuted} />
         </IconButton>

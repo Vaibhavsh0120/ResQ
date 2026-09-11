@@ -29,7 +29,7 @@ export default function UpdateDetail() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Update" onBack={() => router.back()} />
+      <Header title="Update" onBack={() => router.replace('/(tabs)/updates')} />
       <Screen>
         {loading && <LoadingState label="Loading this update..." />}
         {!loading && error && <ErrorState message={error} onRetry={refresh} />}
@@ -79,7 +79,7 @@ export default function UpdateDetail() {
               </>
             )}
 
-            <PrimaryButton title="Back to updates" variant="outline" onPress={() => router.back()} style={styles.backButton} />
+            <PrimaryButton title="Back to updates" variant="outline" onPress={() => router.replace('/(tabs)/updates')} style={styles.backButton} />
           </>
         )}
       </Screen>

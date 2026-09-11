@@ -71,11 +71,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Login is for an existing account signing back in — this mock auth
+  // layer has no real backend to check a per-account onboarding flag
+  // against, but semantically "logging in" only ever applies to someone
+  // who already has an account, which means they already finished setup
+  // once. Marking onboarding complete here (in addition to
+  // AsyncStorage-persisting it) is what makes Login go straight to Home:
+  // without this, _layout.tsx's `isLoggedIn && !hasCompletedOnboarding`
+  // guard would route a logged-in user with no completed-onboarding flag
+  // into /onboarding — which previously happened after every logout,
+  // since logout resets hasCompletedOnboarding to false and login never
+  // set it back to true. Register (below) deliberately leaves this
+  // false, since creating a new account is exactly when setup should run.
   const login = useCallback(async (u: User) => {
     setUser(u);
     setIsGuest(false);
     setIsLoggedIn(true);
+    setHasCompletedOnboarding(true);
     await AsyncStorage.setItem(AUTH_KEY, JSON.stringify({ user: u, isGuest: false }));
+    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
   }, []);
 
   const register = useCallback(async (u: User) => {

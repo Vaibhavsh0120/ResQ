@@ -85,7 +85,7 @@ export default function Register() {
   };
 
   const onGoToLogin = () => {
-    router.back();
+    router.replace('/login');
   };
 
   return (

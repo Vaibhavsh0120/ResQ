@@ -29,7 +29,7 @@ export default function Readiness() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Your readiness" onBack={() => router.back()} />
+      <Header title="Your readiness" onBack={() => router.replace('/(tabs)')} />
       <Screen>
         {loading && <LoadingState label="Checking your readiness..." />}
         {!loading && error && <ErrorState message={error} onRetry={refresh} />}

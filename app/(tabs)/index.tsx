@@ -44,11 +44,9 @@ export default function Home() {
         {/* SOS: the single highest-priority control in the app (PROGRESS.md
             §2.4/§7) — deliberately placed above the readiness card, not
             buried in a menu or folded into the quick-actions grid where
-            it'd read as just another equal-weight option. router.push (not
-            replace) so the Home screen is still underneath in history —
-            backing out of SOS should return here, not to some other tab. */}
+            it'd read as just another equal-weight option. */}
         <Pressable
-          onPress={() => router.push('/sos')}
+          onPress={() => router.replace('/sos')}
           style={({ pressed }) => [
             styles.sosBar,
             { backgroundColor: colors.danger, shadowColor: colors.shadowStrong },
@@ -68,7 +66,7 @@ export default function Home() {
         </Pressable>
 
         <Pressable
-          onPress={() => router.push('/readiness')}
+          onPress={() => router.replace('/readiness')}
           style={({ pressed }) => [
             styles.heroCard,
             { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand },
@@ -98,7 +96,7 @@ export default function Home() {
         </Pressable>
 
         <Pressable
-          onPress={() => router.push('/chat')}
+          onPress={() => router.replace('/chat')}
           style={[styles.composer, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}
         >
           <View style={[styles.chatOrb, { backgroundColor: colors.brandSoft }]}>
@@ -115,7 +113,7 @@ export default function Home() {
             <Eyebrow>QUICK ACTIONS</Eyebrow>
             <Text style={[styles.h2, { color: colors.foreground }]}>What do you need?</Text>
           </View>
-          <Pressable onPress={() => router.push('/(tabs)/updates')} hitSlop={8}>
+          <Pressable onPress={() => router.replace('/(tabs)/updates')} hitSlop={8}>
             <View style={styles.seeAll}>
               <Text style={[styles.linkText, { color: colors.brand }]}>See all</Text>
               <ChevronRight size={15} color={colors.brand} />
@@ -125,7 +123,7 @@ export default function Home() {
 
         <View style={styles.actionGrid}>
           <ActionCard
-            onPress={() => router.push('/(tabs)/report')}
+            onPress={() => router.replace('/(tabs)/report')}
             iconBg={colors.dangerSoft}
             iconColor={colors.danger}
             icon={<AlertTriangle size={19} color={colors.danger} />}
@@ -133,7 +131,7 @@ export default function Home() {
             subtitle="Share what's happening"
           />
           <ActionCard
-            onPress={() => router.push('/(tabs)/safe')}
+            onPress={() => router.replace('/(tabs)/safe')}
             iconBg={colors.brandSoft}
             iconColor={colors.brand}
             icon={<MapPin size={19} color={colors.brand} />}
@@ -141,7 +139,7 @@ export default function Home() {
             subtitle="Nearby support and shelter"
           />
           <ActionCard
-            onPress={() => router.push('/(tabs)/family')}
+            onPress={() => router.replace('/(tabs)/family')}
             iconBg={colors.blueSoft}
             iconColor={colors.blue}
             icon={<Users size={19} color={colors.blue} />}
@@ -149,7 +147,7 @@ export default function Home() {
             subtitle={familyCircleSubtitle(members?.length)}
           />
           <ActionCard
-            onPress={() => router.push('/chat')}
+            onPress={() => router.replace('/chat')}
             iconBg={colors.purpleSoft}
             iconColor={colors.purple}
             icon={<MessageCircle size={19} color={colors.purple} />}
@@ -159,7 +157,7 @@ export default function Home() {
         </View>
 
         <Pressable
-          onPress={() => router.push('/(tabs)/family')}
+          onPress={() => router.replace('/(tabs)/family')}
           style={[styles.insightCard, { backgroundColor: colors.surfaceSoft }]}
         >
           <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>

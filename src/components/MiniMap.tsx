@@ -4,45 +4,18 @@ import { useAppTheme } from '@/theme/ThemeContext';
 import { radius, ThemeColors } from '@/theme/colors';
 import { MapPin } from '@/components/icons';
 
-// MapLibre React Native (the library imported below on native) has no web
-// renderer at all — confirmed against its own docs. Importing it
-// unconditionally would break `expo export --platform web`, which this
-// project's CI/verification relies on — so it's required lazily, only on
-// native platforms.
+// MapLibre React Native has no web renderer at all (confirmed against its
+// own docs — the web story needs a completely separate library,
+// react-map-gl + maplibre-gl-js, which PROGRESS.md's maps plan explicitly
+// scoped out for this pass since the user said web is a nice-to-have
+// only). Importing it unconditionally would break `expo export --platform
+// web`, which this project's CI/verification relies on — so the native
+// module is required lazily, only on native platforms, and web renders
+// the same static-pin fallback style safe.tsx/place-detail.tsx already
+// used before this component existed.
 //
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const MapLibre = Platform.OS !== 'web' ? require('@maplibre/maplibre-react-native') : null;
-
-// Web's real map renderer: maplibre-gl (the WebGL JS library) + react-map-gl
-// (its React wrapper — MapLibre's own recommended web integration, actively
-// maintained, same OpenFreeMap style URL as native). Required lazily and
-// only on web, mirroring the native require above, so this never loads —
-// or even gets resolved by Metro — on iOS/Android. See PROGRESS.md's
-// "Web maps, investigated" note for the fuller research trail.
-//
-// `maplibre-gl` v6 ships ESM-only (no CJS `require` build, `"type":
-// "module"` in its package.json) and its worker script is instantiated via
-// a URL it derives from `import.meta.url` at runtime, with no bundler-side
-// worker registration needed. Metro's default web config
-// (`unstable_enablePackageExports: true`, confirmed against this project's
-// installed `metro-config`) understands the package.json `exports` map's
-// `import` condition, so `import` of an ESM-only package resolves
-// correctly here — no `maplibregl.workerUrl` / `setWorkerUrl` wiring or
-// worker-loader config was needed, which is the simpler of the two setups
-// MapLibre's own migration notes describe for consumers. This was verified
-// by an actual `expo export --platform web` in this project (see
-// PROGRESS.md), not assumed from a generic bundler guide — flagging it
-// here since it's the one non-obvious call in this component.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ReactMapGL = Platform.OS === 'web' ? require('react-map-gl/maplibre') : null;
-if (Platform.OS === 'web') {
-  // Metro's `isCSSEnabled` (on by default for this Expo SDK's web output,
-  // confirmed against `@expo/metro-config`) handles a plain CSS import
-  // like this natively — no CSS-loader config or webpack/Vite assumption
-  // needed. This supplies MapLibre's own marker/popup/control positioning
-  // styles; without it, markers render but aren't positioned correctly.
-  require('maplibre-gl/dist/maplibre-gl.css');
-}
 
 // OpenFreeMap's public instance: no API key, no registration, and no
 // request/view limits by the operator's own stated policy — re-verified
@@ -76,45 +49,18 @@ type Props = {
  * completely different look only on web.
  */
 export function MiniMap({ markers, zoom = 13, height = 190, accessibilityLabel }: Props) {
+  const { colors, isDark } = useAppTheme();
+
   const validMarkers = markers.filter(
     (m) => typeof m.latitude === 'number' && typeof m.longitude === 'number' && !Number.isNaN(m.latitude) && !Number.isNaN(m.longitude)
   );
 
-  if (validMarkers.length === 0) {
+  if (Platform.OS === 'web' || !MapLibre || validMarkers.length === 0) {
     return (
       <StaticMapFallback markers={validMarkers} height={height} accessibilityLabel={accessibilityLabel} />
     );
   }
 
-  if (Platform.OS === 'web') {
-    if (!ReactMapGL) {
-      return (
-        <StaticMapFallback markers={validMarkers} height={height} accessibilityLabel={accessibilityLabel} />
-      );
-    }
-    return (
-      <WebMap markers={validMarkers} zoom={zoom} height={height} accessibilityLabel={accessibilityLabel} />
-    );
-  }
-
-  if (!MapLibre) {
-    return (
-      <StaticMapFallback markers={validMarkers} height={height} accessibilityLabel={accessibilityLabel} />
-    );
-  }
-
-  return <NativeMap markers={validMarkers} zoom={zoom} height={height} accessibilityLabel={accessibilityLabel} />;
-}
-
-type MapSurfaceProps = {
-  markers: MiniMapMarker[];
-  zoom: number;
-  height: number;
-  accessibilityLabel?: string;
-};
-
-function NativeMap({ markers: validMarkers, zoom, height, accessibilityLabel }: MapSurfaceProps) {
-  const { colors, isDark } = useAppTheme();
   const { Map, Camera, ViewAnnotation } = MapLibre;
 
   // Center on the single marker if there's just one (e.g. place-detail),
@@ -148,47 +94,6 @@ function NativeMap({ markers: validMarkers, zoom, height, accessibilityLabel }: 
           overlay that's easy to lose against this app's rounded map card;
           this explicit label guarantees it's always legible regardless of
           map style or theme. */}
-      <View style={[styles.attribution, { backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)' }]}>
-        <Text style={[styles.attributionText, { color: colors.inkMuted }]}>© OpenStreetMap contributors</Text>
-      </View>
-    </View>
-  );
-}
-
-function WebMap({ markers: validMarkers, zoom, height, accessibilityLabel }: MapSurfaceProps) {
-  const { colors, isDark } = useAppTheme();
-  const { Map, Marker } = ReactMapGL;
-
-  // Same simple-average centering as the native branch — see NativeMap's
-  // comment. react-map-gl's viewState shape takes longitude/latitude
-  // directly (not a [lng, lat] center tuple like maplibre-react-native),
-  // so this is duplicated rather than shared to avoid a leaky abstraction
-  // over two genuinely different camera APIs.
-  const centerLng = validMarkers.reduce((sum, m) => sum + m.longitude, 0) / validMarkers.length;
-  const centerLat = validMarkers.reduce((sum, m) => sum + m.latitude, 0) / validMarkers.length;
-
-  return (
-    <View
-      style={[styles.container, { height, borderColor: colors.line }]}
-      accessible
-      accessibilityLabel={accessibilityLabel ?? `Map showing ${validMarkers.length} location${validMarkers.length === 1 ? '' : 's'}`}
-    >
-      <Map
-        mapStyle={MAP_STYLE_URL}
-        initialViewState={{ longitude: centerLng, latitude: centerLat, zoom }}
-        style={{ width: '100%', height: '100%' }}
-        attributionControl={false}
-      >
-        {validMarkers.map((marker) => (
-          <Marker key={marker.id} longitude={marker.longitude} latitude={marker.latitude} anchor="center">
-            <MapPinBadge kind={marker.kind ?? 'primary'} colors={colors} />
-          </Marker>
-        ))}
-      </Map>
-      {/* Same OSM-attribution rationale as NativeMap — see that component's
-          comment. `attributionControl={false}` above suppresses MapLibre's
-          own control so this explicit, theme-matched badge is the only
-          one shown, exactly mirroring the native branch. */}
       <View style={[styles.attribution, { backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)' }]}>
         <Text style={[styles.attributionText, { color: colors.inkMuted }]}>© OpenStreetMap contributors</Text>
       </View>

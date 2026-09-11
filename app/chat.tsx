@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight, Menu, MessageCircle, Plus, Send, ShieldCheck, Sparkles, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
@@ -23,6 +24,7 @@ import { mockChatSuggestions } from '@/data/mockChat';
 
 export default function Chat() {
   useHideTabBar();
+  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const [historyOpen, setHistoryOpen] = useState(false);
   const { messages, sending, send, startNewConversation, loadThread, loadingThread, activeThreadId } = useChat();
@@ -44,7 +46,7 @@ export default function Chat() {
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <Header
         title="Ask ResQ"
-        onBack={() => router.back()}
+        onBack={() => router.replace('/(tabs)')}
         action={
           <IconButton label="Open previous chats" onPress={() => setHistoryOpen(true)} muted>
             <Menu size={18} color={colors.inkMuted} />
@@ -54,7 +56,7 @@ export default function Chat() {
 
       <Modal visible={historyOpen} transparent animationType="fade" onRequestClose={() => setHistoryOpen(false)}>
         <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={() => setHistoryOpen(false)}>
-          <Pressable style={[styles.drawer, { backgroundColor: colors.surface, borderColor: colors.line }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.drawer, { backgroundColor: colors.surface, borderColor: colors.line, paddingTop: insets.top + 16 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.drawerHeader}>
               <Text style={[styles.drawerTitle, { color: colors.foreground }]}>Previous chats</Text>
               <IconButton label="Close previous chats" onPress={() => setHistoryOpen(false)} muted>

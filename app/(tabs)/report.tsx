@@ -96,7 +96,7 @@ export default function Report() {
             <View style={styles.successActions}>
               <PrimaryButton
                 title="See guidance for this"
-                onPress={() => router.push({ pathname: '/guidance-result', params: { types: types.join(',') } })}
+                onPress={() => router.replace({ pathname: '/guidance-result', params: { types: types.join(',') } })}
                 icon={<ShieldCheck size={16} color={colors.onBrand} />}
               />
               <PrimaryButton
@@ -104,7 +104,7 @@ export default function Report() {
                 variant="outline"
                 onPress={() => {
                   resetForm();
-                  router.push('/(tabs)');
+                  router.replace('/(tabs)');
                 }}
               />
             </View>

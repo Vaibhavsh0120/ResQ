@@ -104,7 +104,7 @@ export default function Family() {
               {list.map((person) => (
                 <Pressable
                   key={person.id}
-                  onPress={() => router.push({ pathname: '/family-member', params: { id: person.id } })}
+                  onPress={() => router.replace({ pathname: '/family-member', params: { id: person.id } })}
                   style={[styles.personRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
                 >
                   <View style={[styles.personAvatar, { backgroundColor: colors.brandSoft }]}>

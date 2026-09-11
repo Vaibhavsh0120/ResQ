@@ -34,7 +34,11 @@ export default function Notifications() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Notifications" onBack={() => router.back()} />
+      <Header
+        title="Notifications"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+        action={null}
+      />
       <Screen>
         <View style={styles.intro}>
           <Eyebrow>{unreadCount > 0 ? `${unreadCount} UNREAD` : 'ALL CAUGHT UP'}</Eyebrow>

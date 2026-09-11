@@ -113,7 +113,7 @@ export default function Safe() {
             {(places ?? []).map(({ id, name, detail, status }) => (
               <Pressable
                 key={id}
-                onPress={() => router.push({ pathname: '/place-detail', params: { id } })}
+                onPress={() => router.replace({ pathname: '/place-detail', params: { id } })}
                 style={[styles.placeRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
               >
                 <View style={[styles.placeIcon, { backgroundColor: colors.brandSoft }]}>
