@@ -70,11 +70,39 @@ npm audit                           # 0 vulnerabilities as of 2026-09-11
 
 ## TODO
 
-Nothing in-flight. Next real unblocked decision is Phase 3 (backend
-stack) — see PROGRESS.md §4's "not yet made" list. The web-map marker fix
-below is verified at the build level only (see Known Gaps) — a real
-browser check is the one thing worth doing before calling the v6 web map
-migration fully done.
+**In-flight (2026-09-11): navigation/UX fix pass**, user-reported. Plan:
+
+1. **Systemic nav fix**: replace `router.replace('/(tabs)/...')` used as a
+   "back" action from every drill-in screen (readiness, chat/Ask ResQ,
+   family-member, place-detail, update-detail) with the established
+   `router.canGoBack() ? router.back() : router.replace(fallback)` idiom
+   (already used by `alert-preferences.tsx`/`notifications.tsx`). Also fix
+   the *forward* navigations from Home/tab screens that currently use
+   `router.replace` where `router.push` is correct (so a real stack
+   entry exists to go back to). Confirmed via `getNavigationAction.js` +
+   `stateUtils.js` (`findDivergentState`) that pushing a leaf/detail route
+   from `/(tabs)` targets the root Stack (type `'stack'`), so `PUSH` stays
+   `PUSH` — this is a different case from `guidance-result.tsx`'s
+   documented one (pushing the `(tabs)` *group itself* as a destination,
+   which does NOT apply to pushing `/chat`, `/readiness`, `/sos`, or any
+   tab's own detail screens) — that comment/pattern is left untouched.
+   `sos.tsx` opened via `push` now (still `gestureEnabled: false` in
+   `_layout.tsx` — deliberate-trigger screen, no accidental swipe-dismiss).
+2. **Chat drawer swipe-to-close**: replace the plain `Modal`+backdrop
+   drawer in `chat.tsx` with a `PanGestureHandler`/reanimated-driven
+   drawer so a right-to-left swipe closes it (standard iOS drawer
+   gesture), keeping the existing backdrop-tap-to-close.
+3. **Family tab**: move the check-in card above the fold (near the
+   summary row, before the person list/add-form), and add a Cancel
+   button to the "Add someone to your circle" inline form.
+4. **Updates tab**: remove the header refresh icon button; add
+   pull-to-refresh via `RefreshControl` (new optional prop on
+   `Screen.tsx`).
+5. **Report tab**: add a "Get guidance" action in the pre-report
+   (hazard-selection) step that jumps straight to `guidance-result`
+   without submitting a report.
+
+All planned; see "Resume Here" if interrupted mid-phase.
 
 ## Completed Work
 
@@ -357,4 +385,4 @@ read PROGRESS.md §1 (status table) for the phase overview, then whichever
   render in normal document flow instead of at the intended position.
   `Map.isStyleLoaded()`/the `'load'` event kept the same semantics from
   v5 to v6 (also confirmed directly against the installed dist) — not
-  related to this bug, checked and ruled out first.
+  related to this bug, checked and ruled out first. 
