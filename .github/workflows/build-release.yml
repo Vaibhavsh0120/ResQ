@@ -1,4 +1,4 @@
-name: Build Mobile Release
+name: Build Mobile Releases (Unsigned)
 
 on:
   workflow_dispatch:
