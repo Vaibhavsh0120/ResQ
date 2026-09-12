@@ -70,41 +70,128 @@ npm audit                           # 0 vulnerabilities as of 2026-09-11
 
 ## TODO
 
-**In-flight (2026-09-11): navigation/UX fix pass**, user-reported. Plan:
-
-1. **Systemic nav fix**: replace `router.replace('/(tabs)/...')` used as a
-   "back" action from every drill-in screen (readiness, chat/Ask ResQ,
-   family-member, place-detail, update-detail) with the established
-   `router.canGoBack() ? router.back() : router.replace(fallback)` idiom
-   (already used by `alert-preferences.tsx`/`notifications.tsx`). Also fix
-   the *forward* navigations from Home/tab screens that currently use
-   `router.replace` where `router.push` is correct (so a real stack
-   entry exists to go back to). Confirmed via `getNavigationAction.js` +
-   `stateUtils.js` (`findDivergentState`) that pushing a leaf/detail route
-   from `/(tabs)` targets the root Stack (type `'stack'`), so `PUSH` stays
-   `PUSH` — this is a different case from `guidance-result.tsx`'s
-   documented one (pushing the `(tabs)` *group itself* as a destination,
-   which does NOT apply to pushing `/chat`, `/readiness`, `/sos`, or any
-   tab's own detail screens) — that comment/pattern is left untouched.
-   `sos.tsx` opened via `push` now (still `gestureEnabled: false` in
-   `_layout.tsx` — deliberate-trigger screen, no accidental swipe-dismiss).
-2. **Chat drawer swipe-to-close**: replace the plain `Modal`+backdrop
-   drawer in `chat.tsx` with a `PanGestureHandler`/reanimated-driven
-   drawer so a right-to-left swipe closes it (standard iOS drawer
-   gesture), keeping the existing backdrop-tap-to-close.
-3. **Family tab**: move the check-in card above the fold (near the
-   summary row, before the person list/add-form), and add a Cancel
-   button to the "Add someone to your circle" inline form.
-4. **Updates tab**: remove the header refresh icon button; add
-   pull-to-refresh via `RefreshControl` (new optional prop on
-   `Screen.tsx`).
-5. **Report tab**: add a "Get guidance" action in the pre-report
-   (hazard-selection) step that jumps straight to `guidance-result`
-   without submitting a report.
-
-All planned; see "Resume Here" if interrupted mid-phase.
+No open task. Both plans below (2026-09-11 session 2, and the earlier
+2026-09-11 nav/UX pass) are complete — see Completed Work for what
+shipped and Known Gaps for what's still unverified beyond static/syntax
+checks. If a new task starts, write its plan here before implementing,
+per the standard workflow.
 
 ## Completed Work
+
+- **Voice conversation page + SOS layout fix (2026-09-11 session 2).**
+  - **SOS UI bug, fixed at the root cause**: `Screen.tsx`'s
+    `scroll={false}` branch was missing `flex: 1` on its wrapper `View`,
+    so `sos.tsx`'s `triggerWrap` (which needs `flex: 1` to center within
+    full available height) collapsed to near-zero space — exactly the
+    reported screenshot (button pinned near the top, title/subtitle/hint
+    invisible, huge dead zone below). Confirmed `sos.tsx` was the only
+    caller of `scroll={false}` before fixing it at the component level.
+  - **`app/voice.tsx`** — a full-screen "talk to ResQ" page: tap an
+    animated orb to speak, get a real spoken reply back (`expo-speech`,
+    added to `package.json` at `~57.0.3`), with the orb pulsing while
+    listening and while ResQ talks. Reached from a new mic button next to
+    Home's "Ask ResQ" composer row; registered in `_layout.tsx` and the
+    smoke test's `staticScreens`.
+  - **Speech-to-text is real on web, honestly unavailable on native.**
+    `src/services/voiceService.ts` (native) / `.web.ts` (web) — the same
+    platform-file pattern as `MiniMap.tsx`/`MiniMap.web.tsx`.
+    `voiceService.web.ts` wires the browser's actual `SpeechRecognition`/
+    `webkitSpeechRecognition` API (zero install, genuinely works in
+    Chrome/Edge/Safari today). `voiceService.ts` (native) reports
+    `available: false` with a clear reason and never fabricates a
+    transcript — real on-device STT needs `expo-speech-recognition`
+    (community package, config plugin + dev-client rebuild), which can't
+    be installed/linked/verified in this sandbox (no network access, see
+    Verified Findings). `voice.tsx` falls back to a typed-input composer
+    on native; the reply still comes back with full text-to-speech.
+  - **`src/services/ttsService.ts`** wraps `expo-speech` with a
+    safety-net timeout (word-count-based estimate) so a misfire of
+    `onDone`/`onStopped`/`onError` — a real, tracked issue on some web
+    browsers — can never leave `useVoiceAssistant`'s phase stuck on
+    `'speaking'` forever.
+  - **`src/hooks/useVoiceAssistant.ts`** orchestrates
+    listen → `streamChatReply` (same pipeline `useChat`/`chat.tsx` already
+    use, so voice and text share one brain and one mock/real seam) →
+    speak. Phase state machine (`idle | listening | thinking | speaking |
+    error`) plus an `amplitude` value driving the orb: real mic-level
+    input where the platform provides it, a word-boundary pulse while
+    ResQ speaks, and a gentle synthetic pulse fallback in between so the
+    orb is never visibly dead when no real signal is available.
+  - **Verification**: no `node_modules` in this sandbox (standing
+    constraint, see Verified Findings), so no `tsc --noEmit`/jest/`expo
+    export` run was possible this session. Every new/edited file was
+    instead syntax-checked via TypeScript's `transpileModule` (a real
+    JSX/TS parse, independent of module resolution) — all clean, zero
+    errors. This confirms syntactic correctness only, not a real
+    build/typecheck/runtime pass — see Known Gaps.
+
+- **Navigation/UX fix pass (2026-09-11), user-reported.**
+  1. **Systemic nav fix.** Every "back" action that used
+     `router.replace('/(tabs)/...')` (readiness, chat/Ask ResQ,
+     family-member, place-detail incl. its "Back to safe places" button,
+     update-detail incl. its "Back to updates" button, sos.tsx's close
+     actions) now uses `router.canGoBack() ? router.back() :
+     router.replace(fallback)` — the idiom already established by
+     `alert-preferences.tsx`/`notifications.tsx`. Every *forward*
+     navigation from Home/tab screens to a leaf/detail route that used
+     `replace` (Home's SOS/readiness/chat/quick-actions/tab-shortcut
+     buttons; `updates.tsx` → update-detail/readiness/alert-preferences;
+     `family.tsx` → family-member; `report.tsx` → guidance-result;
+     `safe.tsx` → place-detail) now uses `push`, so a real stack entry
+     exists to go back to. `sos.tsx` is now reached via `push` from Home
+     (its `finalizeAndClose`/close-button comments updated accordingly;
+     `_layout.tsx` keeps `gestureEnabled: false` on it — deliberate
+     screen, no accidental swipe-dismiss). Left untouched, correctly: the
+     three places that push `/(tabs)` *itself* as a destination
+     (`guidance-result.tsx`'s and `report.tsx`'s "Back to home" buttons,
+     `profile.tsx`'s family-tab link) — already documented as a different
+     case, verified via `getNavigationAction.js`/`stateUtils.js`
+     (`findDivergentState`): tab-to-tab navigation within the same
+     `(tabs)` group Home lives in resolves to a same-instance tab switch
+     regardless of push/replace, since the divergent navigator there is
+     the tabs navigator, not the root stack — so Home's own tab-shortcut
+     buttons (`/(tabs)/updates`, `/report`, `/safe`, `/family`) were
+     safely switched to `push` too, not just leaf/detail routes.
+  2. **Chat drawer swipe-to-close.** `chat.tsx`'s previous-chats drawer
+     (`Modal` + two nested `Pressable`s) now uses
+     `Gesture.Pan()`/`GestureDetector` (`react-native-gesture-handler`,
+     already a dependency) driving a `useSharedValue`
+     (`react-native-reanimated`, `4.5.1` — already a dependency with its
+     babel worklets plugin already wired in `babel.config.js`, just never
+     previously exercised in app code) for a right-to-left swipe-to-close,
+     on top of the existing tap-outside-to-close. `Modal`'s own
+     `animationType` set to `"none"` since the drawer now animates itself
+     (avoids double-animating). The drawer is left-anchored, so the
+     shared value's convention is `0` (open) → `-drawerWidth` (closed,
+     off-screen left); the backdrop's opacity is derived from the same
+     value so it fades in lockstep with the slide.
+  3. **Family tab.** The check-in card moved from the bottom of the
+     screen to directly after the summary row (before the person
+     list/add-form) — it's time-sensitive and was easy to miss below the
+     fold. The "Add someone to your circle" inline form now has a Cancel
+     button (outline variant, alongside "Send invite") that closes the
+     form and clears its fields, matching what a successful send already
+     did.
+  4. **Updates tab.** Removed the header's refresh icon button; added
+     pull-to-refresh instead. `Screen.tsx` gained optional
+     `onRefresh`/`refreshing` props (native `RefreshControl` on its
+     `ScrollView`) — a reusable addition any other screen using `Screen`
+     can opt into later, not a one-off. `updates.tsx` distinguishes
+     first-load (`loading && !updates`, shows the full-screen
+     `LoadingState`) from a refresh-of-already-loaded-data
+     (`loading && !!updates`, keeps the list mounted and shows only the
+     native pull spinner) — using `loading` directly for both would have
+     flashed the list away on every pull-to-refresh.
+  5. **Report tab.** The previously-decorative "Get immediate safety
+     guidance" card in the pre-report (hazard-selection) step is now a
+     real shortcut: tapping it pushes `/guidance-result` with whatever
+     hazard types are currently selected (or none — `guidance-result.tsx`
+     already falls back to general guidance when `types` is empty, so
+     this works before picking anything above too).
+  - **Verification**: same syntax-check method as the voice-page work
+    above (TypeScript `transpileModule` on every touched file) — all
+    clean. No `tsc --noEmit`/jest/`expo export` run this session (see
+    Known Gaps).
 
 - **Phases 0–2 complete** (stop-lying-to-the-user pass, full safety
   product, legal/privacy baseline) — see PROGRESS.md §1 for the table.
@@ -116,32 +203,20 @@ All planned; see "Resume Here" if interrupted mid-phase.
   the original SDK-choice rationale and "Important Decisions" below for
   the 2026-09-11 v5→v6 security bump.
 - **Web markers weren't rendering — missing `.maplibregl-marker` CSS
-  (2026-09-11).** User-reported: map tiles rendered on web but no markers
-  appeared. Root cause: `maplibre-gl`'s `Marker` class only ever writes
-  `element.style.transform = 'translate(...)'` on its wrapper element
-  (confirmed directly in `node_modules/maplibre-gl/dist/maplibre-gl.mjs`)
-  — it relies entirely on `maplibre-gl.css`'s `.maplibregl-marker{
-  position:absolute; top:0; left:0; }` rule to give that transform an
-  absolute-positioning base. `MiniMap.web.tsx` deliberately never imports
-  that stylesheet (see "Important Decisions" below for why) and had only
-  ported the canvas cursor rules into its own injected `<style>` tag, not
-  this one — so every marker existed in the DOM with a correct transform
-  but rendered in normal document flow instead of at its intended pixel
-  position. Two other hypotheses were checked and ruled out first: a v6
-  API change to `isStyleLoaded()`/the `'load'` event (checked against the
-  installed v6.9.0 source directly — semantics unchanged from v5, not the
-  cause), and the "office"/"gate" `setMissingStyleImageResolver()`
-  console warnings the user saw (confirmed as unrelated: OpenFreeMap's
-  own vector style failing to resolve two unused POI sprite icons, no
-  connection to `Marker` instances, which are separate DOM elements, not
-  style-driven symbols). Fix: added the one load-bearing
-  `.maplibregl-marker` rule to `ensureCanvasStyle()`'s existing injected
-  `<style>` tag (not a full `maplibre-gl.css` import — see that function's
-  comment for why just this rule). Verified at the build level (see Known
-  Gaps for what that does and doesn't confirm): `tsc --noEmit` clean, all
-  53 jest tests pass, `expo export --platform web` bundles all 34 routes,
-  and the exported bundle was grepped to confirm
-  `.maplibregl-marker{position:absolute` is present in the output JS.
+  (2026-09-11).** Root cause: `maplibre-gl`'s `Marker` only sets
+  `transform` on its wrapper, relying on `maplibre-gl.css`'s
+  `.maplibregl-marker{position:absolute}` for the positioning base —
+  `MiniMap.web.tsx` deliberately skips importing that stylesheet (see
+  Important Decisions) and hadn't carried this one rule over. Fixed by
+  adding just that rule to the existing injected `<style>` tag. Two other
+  hypotheses (a v6 `isStyleLoaded()` change; the
+  `setMissingStyleImageResolver()` console warnings) were checked and
+  ruled out first — see Verified Findings for the `Marker` mechanism, full
+  narrative in PROGRESS.md. Verified at the build level only — `tsc
+  --noEmit` clean, all 53 jest tests pass, `expo export --platform web`
+  bundles all 34 routes, and the exported bundle greps confirm
+  `.maplibregl-marker{position:absolute` is present in the output JS (see
+  Known Gaps for what that does and doesn't prove).
 - **`sos.tsx` confirmed screen now shows a MiniMap (2026-09-11)** of the
   user's live coordinates (`kind: 'danger'`), same component/pattern as
   every other call site; hidden entirely when no GPS fix is available.
@@ -166,6 +241,29 @@ All planned; see "Resume Here" if interrupted mid-phase.
 
 ## Known Gaps
 
+- **Voice page + nav/UX pass (2026-09-11 session 2) verified at the
+  syntax level only — no `npm install` was possible this session** (no
+  network access in this sandbox; standing constraint, see Verified
+  Findings). Every touched file was parsed clean via TypeScript's
+  `transpileModule`, which catches malformed JSX/TS but proves nothing
+  about: whether `expo-speech@~57.0.3` actually resolves/installs
+  cleanly against this project's exact dependency tree; whether the
+  `Gesture.Pan()`/reanimated drawer in `chat.tsx` actually animates
+  correctly on a real device/simulator (the sign convention, clamping,
+  and velocity-based close threshold were reasoned through by hand, not
+  run); whether `expo-speech`'s actual on-device behavior matches its
+  documented API surface; or whether the browser `SpeechRecognition`
+  path in `voiceService.web.ts` behaves as expected in a real browser.
+  **Before trusting this work**: run `npm install`, then `npx tsc
+  --noEmit`, `npx jest --config jest.config.js` (the new
+  `jest.mock('expo-speech', ...)` in `smoke.test.tsx` needs real
+  `expo-video`-style validation — confirm it doesn't mask an import
+  error), and `npx expo start --web` to manually open `/voice` and
+  `/chat`'s drawer and confirm both the orb animation and the swipe
+  gesture behave as designed. Also worth a native run
+  (`expo run:ios`/`android` via a dev-client build) to confirm
+  `expo-speech`'s TTS actually speaks and `onBoundary`/`onDone` fire as
+  expected there — this was reasoned from Expo's docs, not observed.
 - **No backend.** Everything is mock data today.
 - **Web map v6 migration + the marker-CSS fix above are both verified at
   the build/bundle level only** — `tsc`, the full jest suite, and a real
@@ -198,13 +296,17 @@ All planned; see "Resume Here" if interrupted mid-phase.
 
 ## Resume Here
 
-No open task, but the web map (v6 migration + the 2026-09-11 marker-CSS
-fix) is the one thing in this repo that's only been verified at the build
-level, never in a real browser — if picking this up next, `npx expo start
---web` and actually open `/safe` (or any MiniMap screen) first, and
-confirm markers are now visible, before touching anything else. Otherwise:
-read PROGRESS.md §1 (status table) for the phase overview, then whichever
-§3.x section matches what you're about to touch.
+No open task. The most recent work (voice page + nav/UX pass, 2026-09-11
+session 2) is the least-verified thing in this repo right now — if
+picking this up next, start there: `npm install`, `npx tsc --noEmit`,
+`npx jest`, then `npx expo start --web` and manually check `/voice` and
+`/chat`'s drawer swipe (see Known Gaps above for exactly what to look
+for). After that, the web map (v6 migration + the marker-CSS fix) is the
+next thing that's only been verified at the build level, never in a real
+browser — `npx expo start --web`, open `/safe` (or any MiniMap screen),
+confirm markers are visible. Otherwise: read PROGRESS.md §1 (status
+table) for the phase overview, then whichever §3.x section matches what
+you're about to touch.
 
 ## Important Decisions
 
@@ -261,33 +363,18 @@ read PROGRESS.md §1 (status table) for the phase overview, then whichever
     comment before touching it again, it's more complete than this
     summary.
 - **`npm audit` fixes taken individually, not via `--force`
-  (2026-09-11).** `npm audit fix --force` on this project suggests
-  downgrading `expo` from `~57.0.21` to `46.0.21` and `expo-router` to
-  `5.1.11` — npm's resolver matching against stale advisory version
-  ranges, not a real fix; taking it would have been actively worse than
-  doing nothing. What was actually done instead:
-  - `maplibre-gl` critical CVE: see above (real fix, needed the v6 jump).
-  - `decode-uri-component` DoS (GHSA-vcc3-ghjq-m6fr, moderate) — reachable
-    through `expo-router@57.0.20`'s own URL-path parsing (a crafted deep
-    link could freeze the client JS thread; no data exposure). expo-router
-    57.0.20 is already the newest 57.x release and itself pins
-    `query-string: ^7.1.3` (which pins the vulnerable
-    `decode-uri-component`), so there's no non-breaking upgrade path
-    through expo-router directly. Fixed via a `package.json` `overrides`
-    entry forcing `decode-uri-component@^0.5.0` — safe because only
-    `decodeUriComponent()`'s basic decode/error-handling behavior is used
-    anywhere in this dependency chain, unchanged across that version gap.
-  - `uuid` bounds-check bug (GHSA-w5hq-g745-h8pq, moderate) — only
-    reachable through `xcode` (used by `@expo/config-plugins` to generate
-    the native iOS project during `expo prebuild`/`expo run:ios` — build
-    tooling that runs on a developer machine, never shipped in the app
-    itself). `xcode`'s only use of the package is `uuid.v4()`
-    (`node_modules/xcode/lib/pbxProject.js`), an API stable across every
-    `uuid` major version. Fixed via `overrides: { "uuid": "^11.1.1" }`.
-  - Verified via a genuine `npm ci` from a clean `node_modules/` (matching
-    what a real clone would do): `npm audit` → 0 vulnerabilities, `tsc
-    --noEmit` clean, all 53 jest tests pass, `expo export --platform web`
-    bundles all 34 routes.
+  (2026-09-11).** `--force` suggests downgrading `expo` to `46.0.21`/
+  `expo-router` to `5.1.11` — stale advisory-range matching, not a real
+  fix. Done instead: `maplibre-gl` critical CVE via the v6 jump (above).
+  `decode-uri-component` DoS (GHSA-vcc3-ghjq-m6fr, moderate, reachable via
+  `expo-router@57.0.20`'s `query-string` pin) fixed via a `package.json`
+  `overrides` entry forcing `decode-uri-component@^0.5.0` — safe since
+  only basic decode/error-handling is used anywhere in this chain. `uuid`
+  bounds-check bug (GHSA-w5hq-g745-h8pq, moderate, reachable only via
+  `xcode`'s `uuid.v4()` in dev-machine build tooling, never shipped)
+  fixed via `overrides: { "uuid": "^11.1.1" }`. Verified via a clean
+  `npm ci`: `npm audit` → 0 vulnerabilities, `tsc --noEmit` clean, all 53
+  jest tests pass, `expo export --platform web` bundles all 34 routes.
 - **`maplibre-gl.css` is never imported** on web — only styles chrome
   this app doesn't use (default markers, nav/popup controls); the two
   rules that matter (cursor, touch-action) are injected as a 2-line
@@ -385,4 +472,25 @@ read PROGRESS.md §1 (status table) for the phase overview, then whichever
   render in normal document flow instead of at the intended position.
   `Map.isStyleLoaded()`/the `'load'` event kept the same semantics from
   v5 to v6 (also confirmed directly against the installed dist) — not
-  related to this bug, checked and ruled out first. 
+  related to this bug, checked and ruled out first.
+- **`react-native-gesture-handler@2.32`'s modern gesture API is
+  `Gesture.Pan()` + `<GestureDetector>`** (not the legacy
+  `<PanGestureHandler>` component) paired with `reanimated`'s
+  `useSharedValue`/`useAnimatedStyle`/`runOnJS`. The gesture's `onChange`
+  callback exposes `changeX`/`changeY` (per-frame delta, not cumulative)
+  and `onEnd` exposes `velocityX`/`velocityY` — both confirmed via
+  RNGH's own docs/source, used in `chat.tsx`'s drawer. `runOnJS(...)` is
+  required to call a JS-thread function (e.g. a `useState` setter) from
+  inside a gesture callback, since those run as UI-thread worklets by
+  default. This project's `babel.config.js` already had
+  `react-native-worklets/plugin` configured (SDK 57+'s split-out
+  replacement for the old `react-native-reanimated/plugin`) even though
+  no app code had used reanimated before this session — the wiring was
+  already correct, just unexercised.
+- `RefreshControl` needs a real component to keep mounted during a
+  refresh, not a full-screen loading state swapped in for it — reusing
+  `useAsync`'s existing `loading` flag for pull-to-refresh only works
+  correctly if the screen distinguishes "first load, no data yet" from
+  "loading again, but I already have data to keep showing" (see
+  `updates.tsx`'s `isInitialLoad`/`isRefreshing` split); using `loading`
+  directly for both flashes the whole list away on every pull.

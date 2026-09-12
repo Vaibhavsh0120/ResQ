@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Activity, Bell, CarFront, ChevronRight, CloudRain, HomeIcon, ShieldCheck } from '@/components/icons';
+import { Bell, CarFront, ChevronRight, CloudRain, HomeIcon, ShieldCheck } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
-import { IconButton } from '@/components/IconButton';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useUpdates } from '@/hooks/useUpdates';
 import { useCurrentArea } from '@/hooks/useCurrentArea';
@@ -21,6 +20,14 @@ export default function Updates() {
   const { area } = useCurrentArea();
   const [justRefreshed, setJustRefreshed] = useState(false);
 
+  // First load (no data yet) shows the full-screen LoadingState below;
+  // a pull-to-refresh of already-loaded data should keep the list itself
+  // mounted and let the native pull-to-refresh spinner communicate
+  // "refreshing" instead — otherwise every refresh would flash the list
+  // away and back, which felt broken.
+  const isInitialLoad = loading && !updates;
+  const isRefreshing = loading && !!updates;
+
   const onRefresh = () => {
     refresh();
     setJustRefreshed(true);
@@ -33,17 +40,8 @@ export default function Updates() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header
-        title="Live updates"
-        showProfile
-        onProfilePress={() => router.push('/profile')}
-        action={
-          <IconButton label="Refresh updates" onPress={onRefresh} muted>
-            <Activity size={18} color={colors.inkMuted} />
-          </IconButton>
-        }
-      />
-      <Screen>
+      <Header title="Live updates" showProfile onProfilePress={() => router.push('/profile')} />
+      <Screen onRefresh={onRefresh} refreshing={isRefreshing}>
         <View style={styles.intro}>
           <Eyebrow>STAY IN THE KNOW</Eyebrow>
           <Text style={[styles.h1, { color: colors.foreground }]}>What&apos;s happening nearby.</Text>
@@ -60,17 +58,17 @@ export default function Updates() {
           <Text style={[styles.statusSub, { color: colors.inkMuted }]}>{area ?? 'Your area'}</Text>
         </View>
 
-        {loading && <LoadingState label="Fetching the latest updates..." />}
-        {!loading && error && <ErrorState message={error} onRetry={refresh} />}
+        {isInitialLoad && <LoadingState label="Fetching the latest updates..." />}
+        {!isInitialLoad && error && <ErrorState message={error} onRetry={refresh} />}
 
-        {!loading && !error && (
+        {!isInitialLoad && !error && (
           <View style={styles.list}>
             {(updates ?? []).map(({ id, title, detail, tone, iconName }) => {
               const Icon = ICONS[iconName];
               return (
                 <Pressable
                   key={id}
-                  onPress={() => router.replace({ pathname: '/update-detail', params: { id } })}
+                  onPress={() => router.push({ pathname: '/update-detail', params: { id } })}
                   style={[styles.card, { borderColor: colors.line, backgroundColor: colors.surface }]}
                 >
                   <View style={[styles.cardIcon, { backgroundColor: toneBg(tone) }]}>
@@ -97,7 +95,7 @@ export default function Updates() {
 
         <View style={styles.topicGrid}>
           <Pressable
-            onPress={() => router.replace('/readiness')}
+            onPress={() => router.push('/readiness')}
             style={[styles.topicCard, { borderColor: colors.line, backgroundColor: colors.surface }]}
           >
             <ShieldCheck size={19} color={colors.brand} />
@@ -105,7 +103,7 @@ export default function Updates() {
             <Text style={[styles.topicSubtitle, { color: colors.inkMuted }]}>2 min check-in</Text>
           </Pressable>
           <Pressable
-            onPress={() => router.replace('/alert-preferences')}
+            onPress={() => router.push('/alert-preferences')}
             style={[styles.topicCard, { borderColor: colors.line, backgroundColor: colors.surface }]}
           >
             <Bell size={19} color={colors.brand} />

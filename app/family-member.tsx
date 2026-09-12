@@ -62,7 +62,7 @@ export default function FamilyMemberDetail() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title={person?.name ?? 'Person'} onBack={() => router.replace('/(tabs)/family')} />
+      <Header title={person?.name ?? 'Person'} onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/family'))} />
       <Screen>
         {loading && <LoadingState label="Loading their details..." />}
         {!loading && error && <ErrorState message={error} onRetry={refresh} />}

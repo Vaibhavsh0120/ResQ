@@ -58,6 +58,20 @@ jest.mock('expo-video', () => ({
   VideoView: 'VideoView',
 }));
 
+// app/voice.tsx (2026-09-11 session 2) speaks replies via expo-speech.
+// jest-expo has no built-in mock for it (unlike expo-video above), and
+// this smoke test never actually triggers a speak() call anyway (no
+// mock-data fetch here streams a reply without a real user interaction
+// driving useVoiceAssistant's flow) — but voice.tsx's module import chain
+// (app/voice.tsx -> useVoiceAssistant -> ttsService -> expo-speech) still
+// needs `speak`/`stop` to exist as callable functions merely to mount and
+// render without throwing.
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(() => Promise.resolve()),
+  isSpeakingAsync: jest.fn(() => Promise.resolve(false)),
+}));
+
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false), dismissAll: jest.fn() },
   useLocalSearchParams: () => mockParams.current,
@@ -137,6 +151,7 @@ const staticScreens: Array<[string, () => React.ComponentType<any>]> = [
   ['app/alert-preferences.tsx', () => require('../app/alert-preferences').default],
   ['app/privacy-security.tsx', () => require('../app/privacy-security').default],
   ['app/chat.tsx', () => require('../app/chat').default],
+  ['app/voice.tsx', () => require('../app/voice').default],
 ];
 
 // Screens backed by a mock-data hook — these are the ones that matter most,

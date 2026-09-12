@@ -36,7 +36,7 @@ export default function PlaceDetail() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title={place?.name ?? 'Safe place'} onBack={() => router.replace('/(tabs)/safe')} />
+      <Header title={place?.name ?? 'Safe place'} onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/safe'))} />
       <Screen>
         {loading && <LoadingState label="Loading this place..." />}
         {!loading && error && <ErrorState message={error} onRetry={refresh} />}
@@ -108,7 +108,11 @@ export default function PlaceDetail() {
               </View>
             </View>
 
-            <PrimaryButton title="Back to safe places" variant="outline" onPress={() => router.replace('/(tabs)/safe')} />
+            <PrimaryButton
+              title="Back to safe places"
+              variant="outline"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/safe'))}
+            />
           </>
         )}
       </Screen>

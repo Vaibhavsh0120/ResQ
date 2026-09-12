@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, Camera, Check, ImagePlus, Info, MapPin, Send, ShieldCheck, X } from '@/components/icons';
+import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, Info, MapPin, Send, ShieldCheck, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -96,7 +96,7 @@ export default function Report() {
             <View style={styles.successActions}>
               <PrimaryButton
                 title="See guidance for this"
-                onPress={() => router.replace({ pathname: '/guidance-result', params: { types: types.join(',') } })}
+                onPress={() => router.push({ pathname: '/guidance-result', params: { types: types.join(',') } })}
                 icon={<ShieldCheck size={16} color={colors.onBrand} />}
               />
               <PrimaryButton
@@ -150,16 +150,22 @@ export default function Report() {
               })}
             </View>
 
-            <View style={[styles.guidancePreview, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}>
+            <Pressable
+              onPress={() => router.push({ pathname: '/guidance-result', params: { types: types.join(',') } })}
+              style={[styles.guidancePreview, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}
+            >
               <View style={styles.flex}>
                 <Eyebrow>NEXT</Eyebrow>
                 <Text style={[styles.briefTitle, { color: colors.foreground }]}>Get immediate safety guidance</Text>
                 <Text style={[styles.briefBody, { color: colors.inkMuted }]}>
-                  Start with verified steps before sharing an incident.
+                  {types.length
+                    ? 'Start with verified steps before sharing an incident.'
+                    : 'Get general safety guidance, even before choosing a hazard above.'}
                 </Text>
               </View>
               <ShieldCheck size={20} color={colors.brand} />
-            </View>
+              <ChevronRight size={16} color={colors.inkMuted} />
+            </Pressable>
 
             <View style={styles.centeredButtonRow}>
               <PrimaryButton

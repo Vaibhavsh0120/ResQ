@@ -7,6 +7,7 @@ import {
   LifeBuoy,
   MapPin,
   MessageCircle,
+  Mic,
   Send,
   Sparkles,
   Users,
@@ -46,7 +47,7 @@ export default function Home() {
             buried in a menu or folded into the quick-actions grid where
             it'd read as just another equal-weight option. */}
         <Pressable
-          onPress={() => router.replace('/sos')}
+          onPress={() => router.push('/sos')}
           style={({ pressed }) => [
             styles.sosBar,
             { backgroundColor: colors.danger, shadowColor: colors.shadowStrong },
@@ -66,7 +67,7 @@ export default function Home() {
         </Pressable>
 
         <Pressable
-          onPress={() => router.replace('/readiness')}
+          onPress={() => router.push('/readiness')}
           style={({ pressed }) => [
             styles.heroCard,
             { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand },
@@ -95,25 +96,40 @@ export default function Home() {
           </View>
         </Pressable>
 
-        <Pressable
-          onPress={() => router.replace('/chat')}
-          style={[styles.composer, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}
-        >
-          <View style={[styles.chatOrb, { backgroundColor: colors.brandSoft }]}>
-            <Sparkles size={18} color={colors.brand} />
-          </View>
-          <Text style={[styles.composerCopy, { color: colors.inkMuted }]}>Ask ResQ anything...</Text>
-          <View style={[styles.composerSend, { backgroundColor: colors.brandDeep }]}>
-            <Send size={15} color={colors.onBrand} />
-          </View>
-        </Pressable>
+        <View style={styles.composerRow}>
+          <Pressable
+            onPress={() => router.push('/chat')}
+            style={[styles.composer, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}
+          >
+            <View style={[styles.chatOrb, { backgroundColor: colors.brandSoft }]}>
+              <Sparkles size={18} color={colors.brand} />
+            </View>
+            <Text style={[styles.composerCopy, { color: colors.inkMuted }]}>Ask ResQ anything...</Text>
+            <View style={[styles.composerSend, { backgroundColor: colors.brandDeep }]}>
+              <Send size={15} color={colors.onBrand} />
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/voice')}
+            style={({ pressed }) => [
+              styles.voiceButton,
+              { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand },
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Talk to ResQ"
+          >
+            <Mic size={19} color={colors.onBrand} />
+          </Pressable>
+        </View>
 
         <View style={styles.sectionHeading}>
           <View>
             <Eyebrow>QUICK ACTIONS</Eyebrow>
             <Text style={[styles.h2, { color: colors.foreground }]}>What do you need?</Text>
           </View>
-          <Pressable onPress={() => router.replace('/(tabs)/updates')} hitSlop={8}>
+          <Pressable onPress={() => router.push('/(tabs)/updates')} hitSlop={8}>
             <View style={styles.seeAll}>
               <Text style={[styles.linkText, { color: colors.brand }]}>See all</Text>
               <ChevronRight size={15} color={colors.brand} />
@@ -123,7 +139,7 @@ export default function Home() {
 
         <View style={styles.actionGrid}>
           <ActionCard
-            onPress={() => router.replace('/(tabs)/report')}
+            onPress={() => router.push('/(tabs)/report')}
             iconBg={colors.dangerSoft}
             iconColor={colors.danger}
             icon={<AlertTriangle size={19} color={colors.danger} />}
@@ -131,7 +147,7 @@ export default function Home() {
             subtitle="Share what's happening"
           />
           <ActionCard
-            onPress={() => router.replace('/(tabs)/safe')}
+            onPress={() => router.push('/(tabs)/safe')}
             iconBg={colors.brandSoft}
             iconColor={colors.brand}
             icon={<MapPin size={19} color={colors.brand} />}
@@ -139,7 +155,7 @@ export default function Home() {
             subtitle="Nearby support and shelter"
           />
           <ActionCard
-            onPress={() => router.replace('/(tabs)/family')}
+            onPress={() => router.push('/(tabs)/family')}
             iconBg={colors.blueSoft}
             iconColor={colors.blue}
             icon={<Users size={19} color={colors.blue} />}
@@ -147,7 +163,7 @@ export default function Home() {
             subtitle={familyCircleSubtitle(members?.length)}
           />
           <ActionCard
-            onPress={() => router.replace('/chat')}
+            onPress={() => router.push('/chat')}
             iconBg={colors.purpleSoft}
             iconColor={colors.purple}
             icon={<MessageCircle size={19} color={colors.purple} />}
@@ -157,7 +173,7 @@ export default function Home() {
         </View>
 
         <Pressable
-          onPress={() => router.replace('/(tabs)/family')}
+          onPress={() => router.push('/(tabs)/family')}
           style={[styles.insightCard, { backgroundColor: colors.surfaceSoft }]}
         >
           <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>
@@ -317,14 +333,31 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '22deg' }],
     marginTop: -2,
   },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+  },
   composer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
     padding: 9,
-    marginTop: 20,
     borderWidth: 1,
     borderRadius: 17,
+  },
+  voiceButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   chatOrb: {
     width: 34,

@@ -37,7 +37,7 @@ export default function GuidanceResult() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Your guidance" onBack={() => router.replace('/(tabs)/report')} />
+      <Header title="Your guidance" onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/report'))} />
       <Screen>
         {loading && <LoadingState label="Retrieving verified guidance..." />}
         {!loading && error && <ErrorState message={error} onRetry={() => load(types.length ? types : ['general'])} />}

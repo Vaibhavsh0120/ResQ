@@ -45,6 +45,13 @@ export default function Family() {
     setNewPhone('');
   };
 
+  const cancelAdding = () => {
+    setAddingOpen(false);
+    setNewName('');
+    setNewRelation('');
+    setNewPhone('');
+  };
+
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <Header
@@ -90,6 +97,37 @@ export default function Family() {
               </View>
             </View>
 
+            {/* Moved above the person list/add-form (2026-09-11 nav/UX
+                pass) — this is a time-sensitive action people were
+                missing by having to scroll past the whole circle first. */}
+            <View style={[styles.checkinCard, { backgroundColor: colors.surfaceSoft }]}>
+              <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>
+                <Clock3 size={17} color={colors.brand} />
+              </View>
+              <View style={styles.flex}>
+                <Text style={[styles.checkinTitle, { color: colors.foreground }]}>Next check-in</Text>
+                <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
+                {reminderDenied && (
+                  <Text style={[styles.checkinBody, { color: colors.warning }]}>
+                    Notifications are turned off for ResQ in system settings.
+                  </Text>
+                )}
+              </View>
+              <Pressable
+                onPress={toggleReminder}
+                hitSlop={8}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: reminderEnabled }}
+                accessibilityLabel="Remind me to check in"
+                style={styles.reminderToggle}
+              >
+                {reminderEnabled ? <Bell size={16} color={colors.brand} /> : <BellOff size={16} color={colors.inkMuted} />}
+              </Pressable>
+              <Pressable onPress={() => checkIn('fam-2')} hitSlop={8}>
+                <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in</Text>
+              </Pressable>
+            </View>
+
             <View style={styles.familyHeading}>
               <View>
                 <Eyebrow>PEOPLE</Eyebrow>
@@ -104,7 +142,7 @@ export default function Family() {
               {list.map((person) => (
                 <Pressable
                   key={person.id}
-                  onPress={() => router.replace({ pathname: '/family-member', params: { id: person.id } })}
+                  onPress={() => router.push({ pathname: '/family-member', params: { id: person.id } })}
                   style={[styles.personRow, { borderColor: colors.line, backgroundColor: colors.surface }]}
                 >
                   <View style={[styles.personAvatar, { backgroundColor: colors.brandSoft }]}>
@@ -162,7 +200,16 @@ export default function Family() {
                   keyboardType="phone-pad"
                   style={[styles.addPersonInput, { borderColor: colors.line, color: colors.foreground, backgroundColor: colors.surface }]}
                 />
-                <PrimaryButton title="Send invite" onPress={sendInvite} loading={inviting} disabled={!canSendInvite} />
+                <View style={styles.addPersonActions}>
+                  <PrimaryButton title="Cancel" variant="outline" onPress={cancelAdding} style={styles.flex} />
+                  <PrimaryButton
+                    title="Send invite"
+                    onPress={sendInvite}
+                    loading={inviting}
+                    disabled={!canSendInvite}
+                    style={styles.flex}
+                  />
+                </View>
               </View>
             )}
 
@@ -172,34 +219,6 @@ export default function Family() {
               icon={<Plus size={17} color={colors.brand} />}
               onPress={() => setAddingOpen(true)}
             />
-
-            <View style={[styles.checkinCard, { backgroundColor: colors.surfaceSoft }]}>
-              <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>
-                <Clock3 size={17} color={colors.brand} />
-              </View>
-              <View style={styles.flex}>
-                <Text style={[styles.checkinTitle, { color: colors.foreground }]}>Next check-in</Text>
-                <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
-                {reminderDenied && (
-                  <Text style={[styles.checkinBody, { color: colors.warning }]}>
-                    Notifications are turned off for ResQ in system settings.
-                  </Text>
-                )}
-              </View>
-              <Pressable
-                onPress={toggleReminder}
-                hitSlop={8}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: reminderEnabled }}
-                accessibilityLabel="Remind me to check in"
-                style={styles.reminderToggle}
-              >
-                {reminderEnabled ? <Bell size={16} color={colors.brand} /> : <BellOff size={16} color={colors.inkMuted} />}
-              </Pressable>
-              <Pressable onPress={() => checkIn('fam-2')} hitSlop={8}>
-                <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in</Text>
-              </Pressable>
-            </View>
           </>
         )}
       </Screen>
@@ -234,6 +253,7 @@ const styles = StyleSheet.create({
   addPersonTitle: { fontSize: 13, fontWeight: '700' },
   addPersonBody: { fontSize: 10 },
   addPersonInput: { height: 44, paddingHorizontal: 12, borderWidth: 1, borderRadius: radius.sm, fontSize: 12 },
+  addPersonActions: { flexDirection: 'row', gap: 8, marginTop: 2 },
   relationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   relationChip: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderRadius: radius.pill },
   relationChipText: { fontSize: 11, fontWeight: '700' },

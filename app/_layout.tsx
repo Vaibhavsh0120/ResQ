@@ -101,6 +101,7 @@ function RootStack() {
           <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
           <Stack.Screen name="profile" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="chat" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="voice" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="readiness" />
           <Stack.Screen name="guidance-result" />
           <Stack.Screen name="family-member" />

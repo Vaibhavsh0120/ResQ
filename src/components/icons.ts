@@ -28,6 +28,8 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  Mic,
+  MicOff,
   Navigation,
   Phone,
   Plus,
@@ -36,6 +38,7 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  Volume2,
   X,
   ArrowLeft,
   CircleHelp,
@@ -53,6 +56,7 @@ import {
   MonitorSmartphone,
   Mail,
   Scale,
+  Keyboard,
 } from 'lucide-react-native';
 
 export {
@@ -77,6 +81,8 @@ export {
   MapPin,
   Menu,
   MessageCircle,
+  Mic,
+  MicOff,
   Navigation,
   Phone,
   Plus,
@@ -85,6 +91,7 @@ export {
   ShieldCheck,
   Sparkles,
   Users,
+  Volume2,
   X,
   ArrowLeft,
   CircleHelp,
@@ -103,4 +110,5 @@ export {
   Mail,
   CalendarDays,
   Scale,
+  Keyboard,
 };

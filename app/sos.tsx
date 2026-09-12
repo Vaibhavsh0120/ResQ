@@ -187,17 +187,17 @@ export default function Sos() {
         location: locationSummary,
       });
     }
-    // replace, not back — SOS is now reached via router.replace from Home
-    // (see (tabs)/index.tsx), so there's no Home entry left underneath to
-    // pop back to.
-    router.replace('/(tabs)');
+    // SOS is now reached via router.push from Home (see (tabs)/index.tsx),
+    // so a real Home entry exists underneath to pop back to — back(), not
+    // replace(), so a repeat SOS open/close doesn't grow the stack.
+    router.canGoBack() ? router.back() : router.replace('/(tabs)');
   };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: 54 }]}>
         <Pressable
-          onPress={phase === 'confirmed' ? finalizeAndClose : () => router.replace('/(tabs)')}
+          onPress={phase === 'confirmed' ? finalizeAndClose : () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
           accessibilityLabel="Close SOS"
           accessibilityRole="button"
           style={[styles.closeButton, { backgroundColor: colors.surface }]}

@@ -194,6 +194,18 @@ export type ChatStreamEvent =
   | { type: 'done' }
   | { type: 'error'; message: string };
 
+// ---- Voice assistant (app/voice.tsx) --------------------------------------
+
+/** Conversation turn shown on the voice page — distinct from ChatMessage: no streaming/pending state, always a finished utterance. */
+export type VoiceTurn = {
+  id: string;
+  role: ChatRole;
+  text: string;
+};
+
+/** Drives app/voice.tsx's animated orb and status copy. */
+export type VoicePhase = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+
 // ---- Notifications ---------------------------------------------------------
 
 export type NotificationKind = 'alert' | 'family' | 'readiness' | 'system';
