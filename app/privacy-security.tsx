@@ -8,15 +8,24 @@ import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useAuth } from '@/context/AuthContext';
 import { exportLocalData, wipeLocalData } from '@/services/localDataService';
+import { usePrivacySettings } from '@/hooks/usePrivacySettings';
 
-/** Settings screen covering what data ResQ uses and who can see it. */
+/**
+ * Settings screen covering what data ResQ uses and who can see it. The
+ * location-sharing/circle-visibility toggles now persist for real
+ * (privacySettingsService.ts, added 2026-09-12) — previously local
+ * useState with hardcoded `true` defaults, so every choice silently reset
+ * on remount/app restart. See usePrivacySettings.ts for the optimistic-
+ * toggle behavior.
+ */
 export default function PrivacySecurity() {
   const { colors } = useAppTheme();
   const { logout } = useAuth();
-  const [locationSharing, setLocationSharing] = useState(true);
-  const [circleVisibility, setCircleVisibility] = useState(true);
+  const { settings, loading: settingsLoading, error: settingsError, refresh: refreshSettings, toggle } = usePrivacySettings();
+  const isInitialLoad = settingsLoading && !settings;
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -30,7 +39,7 @@ export default function PrivacySecurity() {
     setExportError(null);
     try {
       const data = await exportLocalData();
-      // No backend yet (see PROGRESS.md — this is device-local data
+      // No backend yet (see AGENT.md — this is device-local data
       // only), so this shares the export via the OS share sheet rather
       // than uploading anywhere — the user can save it, AirDrop it,
       // email it to themselves, whatever they choose.
@@ -70,22 +79,30 @@ export default function PrivacySecurity() {
           <Text style={[styles.h1, { color: colors.foreground }]}>What ResQ shares, and with whom.</Text>
         </View>
 
-        <View style={styles.list}>
-          <ToggleRow
-            icon={<MapPin size={18} color={colors.foreground} />}
-            title="Share live location"
-            subtitle="Lets your circle see your location during an active check-in"
-            on={locationSharing}
-            onPress={() => setLocationSharing((v) => !v)}
-          />
-          <ToggleRow
-            icon={<Users size={18} color={colors.foreground} />}
-            title="Visible to my circle"
-            subtitle="Your safety status is visible to people in your family circle"
-            on={circleVisibility}
-            onPress={() => setCircleVisibility((v) => !v)}
-          />
-        </View>
+        {isInitialLoad && <LoadingState label="Loading your settings..." />}
+        {!isInitialLoad && settingsError && !settings && <ErrorState message={settingsError} onRetry={refreshSettings} />}
+
+        {!isInitialLoad && settings && (
+          <>
+            <View style={styles.list}>
+              <ToggleRow
+                icon={<MapPin size={18} color={colors.foreground} />}
+                title="Share live location"
+                subtitle="Lets your circle see your location during an active check-in"
+                on={settings.locationSharing}
+                onPress={() => toggle('locationSharing')}
+              />
+              <ToggleRow
+                icon={<Users size={18} color={colors.foreground} />}
+                title="Visible to my circle"
+                subtitle="Your safety status is visible to people in your family circle"
+                on={settings.circleVisibility}
+                onPress={() => toggle('circleVisibility')}
+              />
+            </View>
+            {settingsError && <Text style={[styles.errorText, { color: colors.danger }]}>{settingsError}</Text>}
+          </>
+        )}
 
         <View style={styles.sectionHeading}>
           <Eyebrow>HOW YOUR DATA IS USED</Eyebrow>

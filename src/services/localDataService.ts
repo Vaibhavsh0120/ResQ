@@ -3,7 +3,7 @@ import * as secureStorage from './secureStorage';
 
 // ── Local data export & account deletion ───────────────────────────────
 // Backs privacy-security.tsx's "Download my data" / "Delete my account"
-// rows (previously dead — see PROGRESS.md Phase 0). There's no backend
+// rows (previously dead — see AGENT.md). There's no backend
 // yet, so both operations work entirely against this device's own
 // AsyncStorage — which today holds everything the app knows about the
 // user (auth/session, onboarding status, notifications, guides-read
@@ -11,7 +11,7 @@ import * as secureStorage from './secureStorage';
 //
 // Deliberately reads `getAllKeys()` rather than a hardcoded key list, so
 // this stays correct as new features add their own storage keys — see
-// PROGRESS.md for the full list as of this writing.
+// AGENT.md for the full list as of this writing.
 //
 // 2026-09-10: profile/medical/family data is now encrypted at rest (see
 // secureStorage.ts) — both functions below were updated so that change

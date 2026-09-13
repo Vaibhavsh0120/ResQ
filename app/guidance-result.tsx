@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { AlertTriangle, Check, LifeBuoy, ShieldCheck } from '@/components/icons';
+import { AlertTriangle, Check, LifeBuoy, MessageCircle, ShieldCheck } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
@@ -120,6 +120,24 @@ export default function GuidanceResult() {
               </Text>
             </View>
 
+            <PrimaryButton
+              title="Continue chat with ResQ"
+              icon={<MessageCircle size={17} color={colors.brand} />}
+              variant="secondary"
+              style={styles.continueChatButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/chat',
+                  // Seeds the conversation with the exact guidance topic
+                  // just shown, so the user can ask follow-up questions
+                  // ("what about pets?", "how much water per person?")
+                  // without retyping context chat.tsx has no other way
+                  // to know about — see that screen's `topic` param
+                  // handling for how this gets sent as the first message.
+                  params: { topic: `Tell me more about preparing for ${guidance.disasterType.toLowerCase()}.` },
+                })
+              }
+            />
             {/* replace, not push: this screen is a root-level sibling of the
                 (tabs) group (see app/_layout.tsx), not a screen inside it.
                 Confirmed by reading expo-router's own source
@@ -160,5 +178,6 @@ const styles = StyleSheet.create({
   sourceTitle: { fontSize: 12, fontWeight: '700' },
   sourcePublisher: { fontSize: 10, marginTop: 2 },
   footerCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, marginTop: 22, marginBottom: 18, borderRadius: radius.lg },
+  continueChatButton: { marginBottom: 10 },
   footerText: { flex: 1, fontSize: 11, lineHeight: 16 },
 });

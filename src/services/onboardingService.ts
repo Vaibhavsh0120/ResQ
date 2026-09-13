@@ -5,7 +5,7 @@ import { FamilyMember, MedicalProfile } from '@/types';
 // Every onboarding screen previously held everything typed in local
 // useState only — finishing onboarding just flipped one boolean
 // (AuthContext.completeOnboarding) and every field was lost (see
-// PROGRESS.md §2.5/§7). This service is the fix: each step's data is
+// AGENT.md). This service is the fix: each step's data is
 // written to AsyncStorage as the user completes that step (not only at
 // the very end), so quitting partway through doesn't lose earlier steps,
 // and returning to a step pre-fills whatever was already entered.

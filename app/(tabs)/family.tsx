@@ -32,6 +32,13 @@ export default function Family() {
   const safeCount = list.filter((p) => p.tone === 'success').length;
   const statusColor = (tone: FamilyMember['tone']) => (tone === 'success' ? colors.brand : colors.warning);
 
+  // Same isInitialLoad/isRefreshing split as updates.tsx: pull-to-refresh
+  // should keep the circle list mounted and let the native spinner
+  // communicate "refreshing" rather than flashing the whole screen back
+  // to the full LoadingState on every pull.
+  const isInitialLoad = loading && !members;
+  const isRefreshing = loading && !!members;
+
   const canSendInvite = newName.trim().length > 0 && newRelation.trim().length > 0;
 
   const sendInvite = async () => {
@@ -64,7 +71,7 @@ export default function Family() {
           </IconButton>
         }
       />
-      <Screen>
+      <Screen onRefresh={refresh} refreshing={isRefreshing}>
         <View style={styles.intro}>
           <Eyebrow>YOUR SAFETY CIRCLE</Eyebrow>
           <Text style={[styles.h1, { color: colors.foreground }]}>Everyone connected.</Text>
@@ -73,10 +80,10 @@ export default function Family() {
           </Text>
         </View>
 
-        {loading && <LoadingState label="Checking on your circle..." />}
-        {!loading && error && <ErrorState message={error} onRetry={refresh} />}
+        {isInitialLoad && <LoadingState label="Checking on your circle..." />}
+        {!isInitialLoad && error && <ErrorState message={error} onRetry={refresh} />}
 
-        {!loading && !error && (
+        {!isInitialLoad && !error && (
           <>
             <View style={styles.summaryRow}>
               <View style={[styles.summaryCard, { borderColor: colors.line, backgroundColor: colors.surface }]}>
@@ -97,34 +104,44 @@ export default function Family() {
               </View>
             </View>
 
-            {/* Moved above the person list/add-form (2026-09-11 nav/UX
-                pass) — this is a time-sensitive action people were
-                missing by having to scroll past the whole circle first. */}
+            {/* Redesigned 2026-09-12 (was a single crammed row: icon +
+                title/body + bell + "Check in" link all inline, vertically
+                centered against each other — when the body text grew to
+                2-3 lines (e.g. the notifications-off warning appearing)
+                the bell and link stayed pinned mid-card instead of
+                following the text, reading as misaligned/cluttered).
+                Two-row layout instead: header row (icon + title + bell,
+                all single-line so they align cleanly regardless of body
+                text length) on top, body text below at full width, then
+                a bottom-aligned "Check in" row — same information and
+                actions, but nothing shifts out of place as the copy
+                changes length. */}
             <View style={[styles.checkinCard, { backgroundColor: colors.surfaceSoft }]}>
-              <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>
-                <Clock3 size={17} color={colors.brand} />
-              </View>
-              <View style={styles.flex}>
+              <View style={styles.checkinHeaderRow}>
+                <View style={[styles.insightIcon, { backgroundColor: colors.brandSoft }]}>
+                  <Clock3 size={17} color={colors.brand} />
+                </View>
                 <Text style={[styles.checkinTitle, { color: colors.foreground }]}>Next check-in</Text>
-                <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
-                {reminderDenied && (
-                  <Text style={[styles.checkinBody, { color: colors.warning }]}>
-                    Notifications are turned off for ResQ in system settings.
-                  </Text>
-                )}
+                <Pressable
+                  onPress={toggleReminder}
+                  hitSlop={8}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: reminderEnabled }}
+                  accessibilityLabel="Remind me to check in"
+                  style={styles.reminderToggle}
+                >
+                  {reminderEnabled ? <Bell size={16} color={colors.brand} /> : <BellOff size={16} color={colors.inkMuted} />}
+                </Pressable>
               </View>
-              <Pressable
-                onPress={toggleReminder}
-                hitSlop={8}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: reminderEnabled }}
-                accessibilityLabel="Remind me to check in"
-                style={styles.reminderToggle}
-              >
-                {reminderEnabled ? <Bell size={16} color={colors.brand} /> : <BellOff size={16} color={colors.inkMuted} />}
-              </Pressable>
-              <Pressable onPress={() => checkIn('fam-2')} hitSlop={8}>
-                <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in</Text>
+              <Text style={[styles.checkinBody, { color: colors.inkMuted }]}>Tomorrow at 9:00 AM · {area ?? 'your area'}</Text>
+              {reminderDenied && (
+                <Text style={[styles.checkinBody, { color: colors.warning }]}>
+                  Notifications are turned off for ResQ in system settings.
+                </Text>
+              )}
+              <Pressable onPress={() => checkIn('fam-2')} hitSlop={8} style={styles.checkinAction}>
+                <Text style={[styles.checkinLink, { color: colors.brand }]}>Check in now</Text>
+                <ChevronRight size={14} color={colors.brand} />
               </Pressable>
             </View>
 
@@ -257,10 +274,12 @@ const styles = StyleSheet.create({
   relationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   relationChip: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderRadius: radius.pill },
   relationChipText: { fontSize: 11, fontWeight: '700' },
-  checkinCard: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 20, padding: 13, borderRadius: 15 },
+  checkinCard: { marginTop: 20, padding: 14, borderRadius: 15, gap: 4 },
+  checkinHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   insightIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  checkinTitle: { fontSize: 12, fontWeight: '700' },
-  checkinBody: { fontSize: 11, marginTop: 3 },
-  checkinLink: { fontSize: 11, fontWeight: '700' },
+  checkinTitle: { flex: 1, fontSize: 13, fontWeight: '700' },
+  checkinBody: { fontSize: 11, lineHeight: 16, marginLeft: 40 },
+  checkinAction: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-end', marginTop: 6, paddingVertical: 4 },
+  checkinLink: { fontSize: 12, fontWeight: '700' },
   reminderToggle: { padding: 4 },
 });

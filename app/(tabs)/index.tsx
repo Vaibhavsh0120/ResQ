@@ -42,8 +42,7 @@ export default function Home() {
           </View>
         </View>
 
-        {/* SOS: the single highest-priority control in the app (PROGRESS.md
-            §2.4/§7) — deliberately placed above the readiness card, not
+        {/* SOS: the single highest-priority control in the app (AGENT.md) — deliberately placed above the readiness card, not
             buried in a menu or folded into the quick-actions grid where
             it'd read as just another equal-weight option. */}
         <Pressable

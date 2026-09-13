@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -19,15 +19,17 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { ChevronRight, Menu, MessageCircle, Plus, Send, ShieldCheck, Sparkles, X } from '@/components/icons';
+import { ChevronRight, Menu, MessageCircle, Mic, Plus, Send, ShieldCheck, Sparkles, X } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
-import { Header } from '@/components/Header';
+import { Header, HEADER_CONTENT_HEIGHT } from '@/components/Header';
 import { IconButton } from '@/components/IconButton';
 import { useHideTabBar } from '@/context/useHideTabBar';
+import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useChat } from '@/hooks/useChat';
 import { useChatThreads } from '@/hooks/useChatThreads';
 import { mockChatSuggestions } from '@/data/mockChat';
+import { timeAgo } from '@/utils/format';
 
 const DRAWER_WIDTH_FRACTION = 0.78;
 // Approximation of styles.drawer's '78%' width in raw pixels, needed
@@ -39,15 +41,63 @@ const FALLBACK_DRAWER_WIDTH = 320;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+/**
+ * Real conversations save `updatedAt` as an ISO timestamp
+ * (chatService.ts's saveChatThread); the 3 example seed threads use a
+ * fixed human string ("Earlier this week") since they were never
+ * "really" updated at a specific moment. Rendering an ISO timestamp
+ * through timeAgo() gives a real "12 min ago"-style label for actual
+ * conversations, while the seed examples just display their string as-is
+ * (Date parsing it yields Invalid Date, which is the deliberate signal to
+ * fall back rather than something to guard against as an error case).
+ */
+function formatThreadTimestamp(updatedAt: string): string {
+  const parsed = new Date(updatedAt);
+  return Number.isNaN(parsed.getTime()) ? updatedAt : timeAgo(updatedAt);
+}
+
 export default function Chat() {
   useHideTabBar();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  // Set by guidance-result.tsx's "Continue chat with ResQ" button (via
+  // router.push({ pathname: '/chat', params: { topic } })) so a guidance
+  // topic can be picked up right where it left off, without the user
+  // having to retype what they just read. Optional — every other way of
+  // reaching this screen (Home's composer, the tab bar) has no such
+  // param, and behaves exactly as before.
+  const { topic } = useLocalSearchParams<{ topic?: string }>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const { messages, sending, send, startNewConversation, loadThread, loadingThread, activeThreadId } = useChat();
   const { data: threads } = useChatThreads();
   const [input, setInput] = useState('');
   const [drawerWidth, setDrawerWidth] = useState(FALLBACK_DRAWER_WIDTH);
+  const keyboardVisible = useKeyboardVisible();
+  // Mic when there's nothing to send yet and the keyboard isn't up (the
+  // natural "I'd rather talk" moment) — send button the instant either
+  // condition flips, since at that point there's something to actually
+  // send. On web, useKeyboardVisible always reports false (no software
+  // keyboard exists there), so this correctly collapses to "mic only
+  // when the input is empty" on web rather than getting stuck showing
+  // mic just because a keyboard visibility check can't apply.
+  const showMicButton = !keyboardVisible && input.trim().length === 0;
+
+  // Fires the topic exactly once per navigation into this screen with a
+  // topic param — same immediate-send behavior as tapping one of the
+  // suggestion chips below (onSend(s)), for consistency. Guarded by a
+  // ref rather than clearing the param, since expo-router params aren't
+  // straightforward to mutate from inside the screen that received them,
+  // and a ref survives re-renders (keyboard open/close, etc.) without
+  // re-firing, while still resetting naturally if the user navigates
+  // here again with a *different* topic later.
+  const sentTopicRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (topic && sentTopicRef.current !== topic) {
+      sentTopicRef.current = topic;
+      send(topic);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic]);
 
   // Drives the drawer's slide-in/out and the backdrop's fade, and doubles
   // as the swipe gesture's live offset: 0 = fully open, -drawerWidth =
@@ -99,8 +149,15 @@ export default function Chat() {
     setInput('');
   };
 
-  const onSelectThread = async (threadId: string) => {
+  const onSelectThread = async (threadId: string, source: 'chat' | 'voice') => {
     setHistoryOpen(false);
+    // Voice-sourced conversations resume on the voice page (real speech
+    // in and out), not here — this screen only has a typed composer.
+    // Text-sourced ones resume in place, same as before.
+    if (source === 'voice') {
+      router.push({ pathname: '/voice', params: { threadId } });
+      return;
+    }
     await loadThread(threadId);
   };
 
@@ -152,12 +209,16 @@ export default function Chat() {
                 <Pressable
                   key={thread.id}
                   style={[styles.historyRow, thread.id === activeThreadId && { backgroundColor: colors.surfaceSoft, borderRadius: radius.md }]}
-                  onPress={() => onSelectThread(thread.id)}
+                  onPress={() => onSelectThread(thread.id, thread.source)}
                 >
-                  <MessageCircle size={15} color={colors.foreground} />
+                  {thread.source === 'voice' ? (
+                    <Mic size={15} color={colors.foreground} />
+                  ) : (
+                    <MessageCircle size={15} color={colors.foreground} />
+                  )}
                   <View style={styles.flex}>
                     <Text style={[styles.historyText, { color: colors.foreground }]}>{thread.title}</Text>
-                    <Text style={[styles.historySubtext, { color: colors.inkMuted }]}>{thread.updatedAt}</Text>
+                    <Text style={[styles.historySubtext, { color: colors.inkMuted }]}>{formatThreadTimestamp(thread.updatedAt)}</Text>
                   </View>
                   <ChevronRight size={15} color={colors.inkMuted} />
                 </Pressable>
@@ -167,7 +228,19 @@ export default function Chat() {
         </View>
       </Modal>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // Was a hardcoded 90 — right for some devices, too large for
+        // others (leaving a visible gap between the composer and the
+        // keyboard, since a larger offset means the view gets pushed up
+        // *less* than the keyboard's real height). Header renders as a
+        // sibling above this KeyboardAvoidingView, not inside it, so its
+        // real on-screen height (insets.top + HEADER_CONTENT_HEIGHT —
+        // see Header.tsx) is exactly what needs to be offset, and it
+        // varies by device via insets.top (notch/Dynamic Island vs not).
+        keyboardVerticalOffset={insets.top + HEADER_CONTENT_HEIGHT}
+      >
         <View style={[styles.chatIntro, { borderColor: colors.line }]}>
           <View style={[styles.chatOrb, { backgroundColor: colors.brandSoft }]}>
             <Sparkles size={20} color={colors.brand} />
@@ -225,7 +298,12 @@ export default function Chat() {
           ))}
         </View>
 
-        <View style={[styles.composer, { borderColor: colors.line, backgroundColor: colors.surfaceSoft }]}>
+        <View
+          style={[
+            styles.composer,
+            { borderColor: colors.line, backgroundColor: colors.surfaceSoft, marginBottom: Math.max(insets.bottom, 16) },
+          ]}
+        >
           <TextInput
             value={input}
             onChangeText={setInput}
@@ -235,8 +313,12 @@ export default function Chat() {
             onSubmitEditing={() => onSend()}
             returnKeyType="send"
           />
-          <Pressable onPress={() => onSend()} style={[styles.sendButton, { backgroundColor: colors.brandDeep }]} accessibilityLabel="Send message">
-            <Send size={17} color={colors.onBrand} />
+          <Pressable
+            onPress={showMicButton ? () => router.push('/voice') : () => onSend()}
+            style={[styles.sendButton, { backgroundColor: colors.brandDeep }]}
+            accessibilityLabel={showMicButton ? 'Talk to ResQ' : 'Send message'}
+          >
+            {showMicButton ? <Mic size={17} color={colors.onBrand} /> : <Send size={17} color={colors.onBrand} />}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -247,7 +329,7 @@ export default function Chat() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   backdrop: { flex: 1, flexDirection: 'row' },
-  backdropFill: { ...StyleSheet.absoluteFillObject },
+  backdropFill: StyleSheet.absoluteFill,
   drawer: {
     width: `${DRAWER_WIDTH_FRACTION * 100}%`,
     height: '100%',
@@ -278,7 +360,7 @@ const styles = StyleSheet.create({
   suggestionsRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 10, flexWrap: 'wrap' },
   suggestionChip: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderRadius: radius.pill },
   suggestionText: { fontSize: 10 },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 20, marginBottom: 16, padding: 7, borderWidth: 1, borderRadius: radius.lg },
+  composer: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 20, padding: 7, borderWidth: 1, borderRadius: radius.lg },
   composerInput: { flex: 1, paddingHorizontal: 7, fontSize: 12 },
   sendButton: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });

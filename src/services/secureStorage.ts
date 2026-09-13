@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // ── Encrypted-at-rest storage: drop-in replacement for AsyncStorage ───────
 // Added 2026-09-10 to close a real gap flagged in docs/data-safety.md and
-// PROGRESS.md's Phase 2: at-rest protection previously relied entirely on
+// AGENT.md: at-rest protection previously relied entirely on
 // the OS's own app-storage encryption, with nothing ResQ-side on top. This
 // adds a real app-level layer for the genuinely sensitive domains (medical
 // info, profile/PII, family circle) without changing every call site's

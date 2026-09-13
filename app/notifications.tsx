@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
 import { LoadingState, ErrorState } from '@/components/AsyncState';
 import { useNotifications } from '@/hooks/useNotifications';
+import { timeAgo } from '@/utils/format';
 import { NotificationItem, NotificationKind } from '@/types';
 
 const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ size?: number; color?: string }>> = {
@@ -17,16 +18,6 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ size?: number; 
   readiness: ShieldCheck,
   system: Bell,
 };
-
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(1, Math.round(diffMs / 60000));
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-}
 
 export default function Notifications() {
   const { colors } = useAppTheme();

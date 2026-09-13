@@ -71,179 +71,194 @@ export default function Profile() {
   };
 
   const displayed = profile ?? mockProfile;
+  // Was rendering LoadingState AND the full mock-fallback-backed profile
+  // UI at the same time while loading (unlike readiness.tsx/updates.tsx,
+  // which gate their content behind `!loading`) — since `displayed`
+  // always has a fallback, the whole styled profile card rendered
+  // instantly with placeholder data while the spinner sat on top of it,
+  // producing a visible flash/double-render on every load. Gated the
+  // same way those other screens already are.
+  const isInitialLoad = loading && !profile;
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <Header title="Profile" onBack={() => router.back()} />
+      <Header
+        title="Profile"
+        onBack={() => router.back()}
+      />
       <Screen>
-        {loading && <LoadingState label="Loading your profile..." />}
-        {!loading && error && <ErrorState message={error} onRetry={refresh} />}
+        {isInitialLoad && <LoadingState label="Loading your profile..." />}
+        {!isInitialLoad && error && <ErrorState message={error} onRetry={refresh} />}
 
-        <View style={styles.hero}>
-          <View style={[styles.avatar, { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand }]}>
-            <Text style={[styles.avatarText, { color: colors.onBrand }]}>{isGuest ? 'G' : initialsFromName(displayed.name)}</Text>
+        {!isInitialLoad && (
+          <>
+            <View style={styles.hero}>
+              <View style={[styles.avatar, { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand }]}>
+              <Text style={[styles.avatarText, { color: colors.onBrand }]}>{isGuest ? 'G' : initialsFromName(displayed.name)}</Text>
+            </View>
+            <Text style={[styles.heroName, { color: colors.foreground }]}>{displayed.name}</Text>
+            <Text style={[styles.heroEmail, { color: colors.inkMuted }]}>{displayed.email}</Text>
+            <View style={[styles.badge, { backgroundColor: colors.brandSoft }]}>
+              <ShieldCheck size={14} color={colors.brand} />
+              <Text style={[styles.badgeText, { color: colors.brand }]}>Verified profile</Text>
+            </View>
           </View>
-          <Text style={[styles.heroName, { color: colors.foreground }]}>{displayed.name}</Text>
-          <Text style={[styles.heroEmail, { color: colors.inkMuted }]}>{displayed.email}</Text>
-          <View style={[styles.badge, { backgroundColor: colors.brandSoft }]}>
-            <ShieldCheck size={14} color={colors.brand} />
-            <Text style={[styles.badgeText, { color: colors.brand }]}>Verified profile</Text>
-          </View>
-        </View>
 
-        <View style={styles.actionsRow}>
-          <PrimaryButton
-            title={editing ? 'Editing profile' : 'Edit profile'}
-            variant="outline"
-            style={styles.flex}
-            onPress={() => {
-              setDraft(displayed);
-              setEditing(true);
-            }}
-          />
-          {editing && (
+          <View style={styles.actionsRow}>
             <PrimaryButton
-              title="Save"
+              title={editing ? 'Editing profile' : 'Edit profile'}
+              variant="outline"
               style={styles.flex}
-              icon={<Check size={15} color={colors.onBrand} />}
-              onPress={onSave}
-              loading={saving}
+              onPress={() => {
+                setDraft(displayed);
+                setEditing(true);
+              }}
             />
+            {editing && (
+              <PrimaryButton
+                title="Save"
+                style={styles.flex}
+                icon={<Check size={15} color={colors.onBrand} />}
+                onPress={onSave}
+                loading={saving}
+              />
+            )}
+          </View>
+
+          {editing ? (
+            <View style={styles.formStack}>
+              <FormField label="Full name" value={draft.name} onChangeText={(v) => update('name', v)} />
+              <FormField label="Email address" value={draft.email} onChangeText={(v) => update('email', v)} />
+              <FormField label="Phone number" value={draft.phone} onChangeText={(v) => update('phone', v)} />
+              <FormField label="Home area" value={draft.location} onChangeText={(v) => update('location', v)} />
+              <FormField label="Date of birth" value={draft.dob ?? ''} onChangeText={(v) => update('dob', v)} placeholder="DD / MM / YYYY" keyboardType="numeric" />
+              <View>
+                <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Blood type</Text>
+                <View style={styles.bloodGrid}>
+                  {BLOOD_TYPES.map((bt) => {
+                    const isSelected = draft.bloodType === bt;
+                    return (
+                      <Pressable key={bt} onPress={() => update('bloodType', isSelected ? '' : bt)}>
+                        <Text
+                          style={[
+                            styles.bloodChip,
+                            {
+                              backgroundColor: isSelected ? colors.brandDeep : colors.surfaceSoft,
+                              borderColor: isSelected ? colors.brand : colors.line,
+                              color: isSelected ? colors.onBrand : colors.foreground,
+                            },
+                          ]}
+                        >
+                          {bt}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              <FormField label="Emergency note" value={draft.note} onChangeText={(v) => update('note', v)} multiline />
+            </View>
+          ) : (
+            <View style={styles.detailsStack}>
+              <DetailRow icon={<Phone size={17} color={colors.foreground} />} title={displayed.phone} subtitle="Emergency contact number" />
+              <DetailRow icon={<MapPin size={17} color={colors.foreground} />} title={displayed.location} subtitle="Primary location" />
+              {displayed.dob && <DetailRow icon={<User size={17} color={colors.foreground} />} title={displayed.dob} subtitle="Date of birth" />}
+              {displayed.bloodType && <DetailRow icon={<Droplets size={17} color={colors.foreground} />} title={displayed.bloodType} subtitle="Blood type" />}
+              <DetailRow icon={<Info size={17} color={colors.foreground} />} title="Emergency note" subtitle={displayed.note} />
+            </View>
           )}
-        </View>
 
-        {editing ? (
-          <View style={styles.formStack}>
-            <FormField label="Full name" value={draft.name} onChangeText={(v) => update('name', v)} />
-            <FormField label="Email address" value={draft.email} onChangeText={(v) => update('email', v)} />
-            <FormField label="Phone number" value={draft.phone} onChangeText={(v) => update('phone', v)} />
-            <FormField label="Home area" value={draft.location} onChangeText={(v) => update('location', v)} />
-            <FormField label="Date of birth" value={draft.dob ?? ''} onChangeText={(v) => update('dob', v)} placeholder="DD / MM / YYYY" keyboardType="numeric" />
-            <View>
-              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Blood type</Text>
-              <View style={styles.bloodGrid}>
-                {BLOOD_TYPES.map((bt) => {
-                  const isSelected = draft.bloodType === bt;
-                  return (
-                    <Pressable key={bt} onPress={() => update('bloodType', isSelected ? '' : bt)}>
-                      <Text
-                        style={[
-                          styles.bloodChip,
-                          {
-                            backgroundColor: isSelected ? colors.brandDeep : colors.surfaceSoft,
-                            borderColor: isSelected ? colors.brand : colors.line,
-                            color: isSelected ? colors.onBrand : colors.foreground,
-                          },
-                        ]}
-                      >
-                        {bt}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+          {!editing && medicalProfile && hasMedicalInfo(medicalProfile) && (
+            <View style={[styles.medicalCard, { borderColor: colors.dangerSoft, backgroundColor: colors.dangerSoft }]}>
+              <View style={styles.medicalHeading}>
+                <BriefcaseMedical size={17} color={colors.danger} />
+                <Text style={[styles.medicalTitle, { color: colors.danger }]}>Medical ID</Text>
               </View>
+              <Text style={[styles.medicalSub, { color: colors.inkMuted }]}>
+                Visible to you here and shareable with first responders in an emergency.
+              </Text>
+              {medicalProfile.allergies.length > 0 && (
+                <View style={styles.medicalRow}>
+                  <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Allergies</Text>
+                  <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.allergies.join(', ')}</Text>
+                </View>
+              )}
+              {!!medicalProfile.conditions && (
+                <View style={styles.medicalRow}>
+                  <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Conditions</Text>
+                  <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.conditions}</Text>
+                </View>
+              )}
+              {accessibilityNeedsSummary(medicalProfile) && (
+                <View style={styles.medicalRow}>
+                  <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Accessibility</Text>
+                  <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{accessibilityNeedsSummary(medicalProfile)}</Text>
+                </View>
+              )}
             </View>
-            <FormField label="Emergency note" value={draft.note} onChangeText={(v) => update('note', v)} multiline />
+          )}
+
+          <View style={styles.statsRow}>
+            <StatCard value={readiness ? `${readiness.score}%` : '--'} label="Readiness" />
+            <StatCard value={members ? String(members.length) : '--'} label="People" />
+            <StatCard value={String(guidesRead)} label="Guides read" />
           </View>
-        ) : (
-          <View style={styles.detailsStack}>
-            <DetailRow icon={<Phone size={17} color={colors.foreground} />} title={displayed.phone} subtitle="Emergency contact number" />
-            <DetailRow icon={<MapPin size={17} color={colors.foreground} />} title={displayed.location} subtitle="Primary location" />
-            {displayed.dob && <DetailRow icon={<User size={17} color={colors.foreground} />} title={displayed.dob} subtitle="Date of birth" />}
-            {displayed.bloodType && <DetailRow icon={<Droplets size={17} color={colors.foreground} />} title={displayed.bloodType} subtitle="Blood type" />}
-            <DetailRow icon={<Info size={17} color={colors.foreground} />} title="Emergency note" subtitle={displayed.note} />
+
+          <View style={styles.settingsList}>
+            <SettingsRow
+              icon={<Users size={18} color={colors.foreground} />}
+              title="My people"
+              subtitle="Manage your safety circle"
+              trailing={<ChevronRight size={17} color={colors.inkMuted} />}
+              // replace, not push — profile.tsx is a root-level sibling of
+              // the (tabs) group (see app/_layout.tsx), so a push here
+              // stacks a second, separate (tabs) instance rather than
+              // switching within the one already mounted underneath this
+              // screen. Same root cause and fix as guidance-result.tsx's
+              // "Back to home" button — see the comment there for how this
+              // was confirmed against expo-router's own source.
+              onPress={() => router.replace('/(tabs)/family')}
+            />
+            <SettingsRow icon={<Bell size={18} color={colors.foreground} />} title="Notifications" subtitle="Alerts and check-in reminders" trailing={<Toggle on />} onPress={() => router.push('/alert-preferences')} />
+            <SettingsRow
+              icon={<LifeBuoy size={18} color={colors.danger} />}
+              iconBg={colors.dangerSoft}
+              title="SOS history"
+              subtitle="Your past emergency activations"
+              trailing={<ChevronRight size={17} color={colors.inkMuted} />}
+              onPress={() => router.push('/sos-history')}
+            />
+            <SettingsRow
+              icon={<LockKeyhole size={18} color={colors.foreground} />}
+              title="Privacy & security"
+              subtitle="Your data, your control"
+              trailing={<ChevronRight size={17} color={colors.inkMuted} />}
+              onPress={() => router.push('/privacy-security')}
+            />
           </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.inkMuted }]}>APPEARANCE</Text>
+          <ThemeModeSelector mode={mode} onChange={setMode} />
+
+          <Pressable
+            onPress={async () => {
+              // Sets isLoggedIn to false. app/_layout.tsx wraps the tabs,
+              // profile, and every other authenticated screen in a
+              // <Stack.Protected guard={isLoggedIn}> — when that guard flips
+              // to false, expo-router removes those screens' history
+              // entries entirely (not just navigates away from them), so
+              // there's nothing left in the stack for a back-gesture to
+              // return to. No manual navigation call needed here; the root
+              // layout renders /login as soon as isLoggedIn updates.
+              await logout();
+            }}
+            style={[styles.signOut, { backgroundColor: colors.dangerSoft }]}
+          >
+            <LogIn size={17} color={colors.danger} />
+            <Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text>
+          </Pressable>
+          </>
         )}
-
-        {!editing && medicalProfile && hasMedicalInfo(medicalProfile) && (
-          <View style={[styles.medicalCard, { borderColor: colors.dangerSoft, backgroundColor: colors.dangerSoft }]}>
-            <View style={styles.medicalHeading}>
-              <BriefcaseMedical size={17} color={colors.danger} />
-              <Text style={[styles.medicalTitle, { color: colors.danger }]}>Medical ID</Text>
-            </View>
-            <Text style={[styles.medicalSub, { color: colors.inkMuted }]}>
-              Visible to you here and shareable with first responders in an emergency.
-            </Text>
-            {medicalProfile.allergies.length > 0 && (
-              <View style={styles.medicalRow}>
-                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Allergies</Text>
-                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.allergies.join(', ')}</Text>
-              </View>
-            )}
-            {!!medicalProfile.conditions && (
-              <View style={styles.medicalRow}>
-                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Conditions</Text>
-                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{medicalProfile.conditions}</Text>
-              </View>
-            )}
-            {accessibilityNeedsSummary(medicalProfile) && (
-              <View style={styles.medicalRow}>
-                <Text style={[styles.medicalLabel, { color: colors.foreground }]}>Accessibility</Text>
-                <Text style={[styles.medicalValue, { color: colors.inkMuted }]}>{accessibilityNeedsSummary(medicalProfile)}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={styles.statsRow}>
-          <StatCard value={readiness ? `${readiness.score}%` : '--'} label="Readiness" />
-          <StatCard value={members ? String(members.length) : '--'} label="People" />
-          <StatCard value={String(guidesRead)} label="Guides read" />
-        </View>
-
-        <View style={styles.settingsList}>
-          <SettingsRow
-            icon={<Users size={18} color={colors.foreground} />}
-            title="My people"
-            subtitle="Manage your safety circle"
-            trailing={<ChevronRight size={17} color={colors.inkMuted} />}
-            // replace, not push — profile.tsx is a root-level sibling of
-            // the (tabs) group (see app/_layout.tsx), so a push here
-            // stacks a second, separate (tabs) instance rather than
-            // switching within the one already mounted underneath this
-            // screen. Same root cause and fix as guidance-result.tsx's
-            // "Back to home" button — see the comment there for how this
-            // was confirmed against expo-router's own source.
-            onPress={() => router.replace('/(tabs)/family')}
-          />
-          <SettingsRow icon={<Bell size={18} color={colors.foreground} />} title="Notifications" subtitle="Alerts and check-in reminders" trailing={<Toggle on />} onPress={() => router.push('/alert-preferences')} />
-          <SettingsRow
-            icon={<LifeBuoy size={18} color={colors.danger} />}
-            iconBg={colors.dangerSoft}
-            title="SOS history"
-            subtitle="Your past emergency activations"
-            trailing={<ChevronRight size={17} color={colors.inkMuted} />}
-            onPress={() => router.push('/sos-history')}
-          />
-          <SettingsRow
-            icon={<LockKeyhole size={18} color={colors.foreground} />}
-            title="Privacy & security"
-            subtitle="Your data, your control"
-            trailing={<ChevronRight size={17} color={colors.inkMuted} />}
-            onPress={() => router.push('/privacy-security')}
-          />
-        </View>
-
-        <Text style={[styles.sectionLabel, { color: colors.inkMuted }]}>APPEARANCE</Text>
-        <ThemeModeSelector mode={mode} onChange={setMode} />
-
-        <Pressable
-          onPress={async () => {
-            // Sets isLoggedIn to false. app/_layout.tsx wraps the tabs,
-            // profile, and every other authenticated screen in a
-            // <Stack.Protected guard={isLoggedIn}> — when that guard flips
-            // to false, expo-router removes those screens' history
-            // entries entirely (not just navigates away from them), so
-            // there's nothing left in the stack for a back-gesture to
-            // return to. No manual navigation call needed here; the root
-            // layout renders /login as soon as isLoggedIn updates.
-            await logout();
-          }}
-          style={[styles.signOut, { backgroundColor: colors.dangerSoft }]}
-        >
-          <LogIn size={17} color={colors.danger} />
-          <Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text>
-        </Pressable>
       </Screen>
 
     </View>

@@ -180,6 +180,14 @@ export type ChatThreadSummary = {
   id: string;
   title: string;
   updatedAt: string;
+  /**
+   * Which surface this conversation happened on. Both chat.tsx (text)
+   * and voice.tsx now save to the same thread store (see
+   * chatHistoryService.ts) — this is what lets the history drawer show
+   * a distinct icon/label for voice conversations rather than
+   * presenting everything as if it were typed.
+   */
+  source: 'chat' | 'voice';
 };
 
 /** A previous thread's full message list, keyed by ChatThreadSummary.id. Mock-only until chat history has a real backend. */
@@ -212,7 +220,7 @@ export type NotificationKind = 'alert' | 'family' | 'readiness' | 'system';
 
 /**
  * A single item behind the Header bell. Local-only today (no push server —
- * see PROGRESS.md Phase 1); read state is persisted on-device so it survives
+ * see AGENT.md); read state is persisted on-device so it survives
  * app restarts even before a backend exists.
  */
 export type NotificationItem = {
@@ -228,7 +236,7 @@ export type NotificationItem = {
 
 /**
  * One SOS activation, logged locally on-device (no backend yet — see
- * PROGRESS.md Phase 1/3). `contactsNotified` records who an SMS share-sheet
+ * AGENT.md). `contactsNotified` records who an SMS share-sheet
  * was opened for at the time, not delivery confirmation — there's no way to
  * confirm an SMS actually sent from a share sheet, so the log is honest
  * about intent ("we opened a message to these people") rather than claiming

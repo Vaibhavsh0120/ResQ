@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // backend involved. It is a different thing from notificationsService.ts,
 // which is an in-app *feed* of past updates (read/unread list, no OS-level
 // alert). Remote push (Expo push tokens, FCM/APNs) is still not built and
-// stays out of scope here — see PROGRESS.md Phase 1/3.
+// stays out of scope here — see AGENT.md.
 //
 // Local notifications work in Expo Go on both platforms (unlike push, which
 // Expo Go on Android dropped support for as of SDK 53), so this doesn't

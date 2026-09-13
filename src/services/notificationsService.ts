@@ -5,7 +5,7 @@ import { mockNotifications } from '@/data/mockNotifications';
 import { NotificationItem } from '@/types';
 
 // ── Notifications: local-only until a push backend exists ─────────────────
-// There is no push server yet (see PROGRESS.md Phase 1/3: expo-notifications
+// There is no push server yet (see AGENT.md: expo-notifications
 // + FCM are both still open). Until then, this is the real destination for
 // the Header bell — backed by on-device storage so read state survives
 // restarts, seeded once from mockNotifications the first time it's opened.

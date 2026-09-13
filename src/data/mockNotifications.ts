@@ -4,7 +4,7 @@ import { NotificationItem } from '@/types';
  * Seed notifications shown the first time a user opens the Notifications
  * screen (before any local read-state has been recorded). A real backend
  * will replace this with a `/v1/notifications` feed plus FCM push — see
- * PROGRESS.md Phase 1/3.
+ * AGENT.md.
  */
 export const mockNotifications: NotificationItem[] = [
   {

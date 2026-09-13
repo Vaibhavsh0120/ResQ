@@ -18,4 +18,14 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|lucide-react-native)',
   ],
+  // react-native-worklets ships a native module that isn't available under
+  // Jest's node/jsdom environment. Its own docs (docs.swmansion.com/react-
+  // native-worklets/docs/guides/testing) recommend this resolver override so
+  // `import ... from 'react-native-worklets'` (pulled in transitively by
+  // react-native-reanimated, used by chat.tsx's drawer gesture) resolves to
+  // the package's web/JS implementation under test instead of its .native.ts
+  // entry — without this, any screen that imports reanimated crashes at
+  // require-time in the smoke tests with "Cannot read properties of
+  // undefined (reading 'loadUnpackers')".
+  resolver: 'react-native-worklets/jest/resolver',
 };

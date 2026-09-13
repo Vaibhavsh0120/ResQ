@@ -4,7 +4,7 @@ import { apiRequest } from './apiClient';
 import { SosEvent } from '@/types';
 
 // ── SOS history: local-only until a backend exists ────────────────────────
-// There is no backend yet (see PROGRESS.md Phase 1/3), so an SOS activation
+// There is no backend yet (see AGENT.md), so an SOS activation
 // itself is entirely on-device: it opens tel:112 and an SMS share sheet to
 // whichever family members have a phone number on file (see app/sos.tsx).
 // This service only logs that an activation happened, so Profile can show a

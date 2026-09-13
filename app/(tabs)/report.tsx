@@ -29,7 +29,7 @@ export default function Report() {
 
   // Seeds from useCurrentArea(), which now prefers live device location
   // over the profile's static home area when a GPS fix is available
-  // (PROGRESS.md Phase 1's useDeviceLocation) — same single-source-of-truth
+  // (AGENT.md useDeviceLocation) — same single-source-of-truth
   // pattern as safe.tsx/updates.tsx. Still just a starting value the user
   // can edit, not a live-tracked field.
   useEffect(() => {

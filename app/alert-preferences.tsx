@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, CarFront, CloudRain, ShieldCheck, Users } from '@/components/icons';
@@ -7,27 +7,28 @@ import { radius } from '@/theme/colors';
 import { Header } from '@/components/Header';
 import { Screen } from '@/components/Screen';
 import { Eyebrow } from '@/components/Eyebrow';
+import { LoadingState, ErrorState } from '@/components/AsyncState';
+import { useAlertPreferences } from '@/hooks/useAlertPreferences';
+import { AlertPreferenceKey } from '@/services/alertPreferencesService';
 
-type PreferenceKey = 'weather' | 'community' | 'traffic' | 'family';
-
-const PREFERENCES: { key: PreferenceKey; icon: React.ComponentType<{ size?: number; color?: string }>; title: string; subtitle: string }[] = [
+const PREFERENCES: { key: AlertPreferenceKey; icon: React.ComponentType<{ size?: number; color?: string }>; title: string; subtitle: string }[] = [
   { key: 'weather', icon: CloudRain, title: 'Weather alerts', subtitle: 'Storms, flooding, and extreme heat warnings' },
   { key: 'community', icon: ShieldCheck, title: 'Community updates', subtitle: 'Shelter openings and neighborhood notices' },
   { key: 'traffic', icon: CarFront, title: 'Road & traffic', subtitle: 'Closures and hazards reported nearby' },
   { key: 'family', icon: Users, title: 'Family check-ins', subtitle: "When someone in your circle checks in or needs help" },
 ];
 
-/** Settings screen for choosing which categories of live updates trigger a notification. */
+/**
+ * Settings screen for choosing which categories of live updates trigger a
+ * notification. Preferences now persist for real (alertPreferencesService.ts,
+ * added 2026-09-12) — previously local useState with hardcoded defaults, so
+ * every choice silently reset on remount/app restart. See
+ * useAlertPreferences.ts for the optimistic-toggle behavior.
+ */
 export default function AlertPreferences() {
   const { colors } = useAppTheme();
-  const [enabled, setEnabled] = useState<Record<PreferenceKey, boolean>>({
-    weather: true,
-    community: true,
-    traffic: false,
-    family: true,
-  });
-
-  const toggle = (key: PreferenceKey) => setEnabled((current) => ({ ...current, [key]: !current[key] }));
+  const { preferences, loading, error, refresh, toggle } = useAlertPreferences();
+  const isInitialLoad = loading && !preferences;
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -44,36 +45,43 @@ export default function AlertPreferences() {
           </Text>
         </View>
 
-        <View style={styles.list}>
-          {PREFERENCES.map(({ key, icon: Icon, title, subtitle }) => (
-            <Pressable
-              key={key}
-              onPress={() => toggle(key)}
-              style={[styles.row, { borderColor: colors.line, backgroundColor: colors.surface }]}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: enabled[key] }}
-              accessibilityLabel={title}
-            >
-              <View style={[styles.rowIcon, { backgroundColor: colors.brandSoft }]}>
-                <Icon size={18} color={colors.brand} />
-              </View>
-              <View style={styles.flex}>
-                <Text style={[styles.rowTitle, { color: colors.foreground }]}>{title}</Text>
-                <Text style={[styles.rowSubtitle, { color: colors.inkMuted }]}>{subtitle}</Text>
-              </View>
-              <View style={[styles.toggleTrack, { backgroundColor: enabled[key] ? colors.brand : colors.line }]}>
-                <View style={[styles.toggleThumb, { backgroundColor: colors.controlThumb }, enabled[key] && styles.toggleThumbOn]} />
-              </View>
-            </Pressable>
-          ))}
-        </View>
+        {isInitialLoad && <LoadingState label="Loading your preferences..." />}
+        {!isInitialLoad && error && <ErrorState message={error} onRetry={refresh} />}
 
-        <View style={[styles.footerCard, { backgroundColor: colors.surfaceSoft }]}>
-          <Bell size={17} color={colors.brand} />
-          <Text style={[styles.footerText, { color: colors.inkMuted }]}>
-            Critical safety alerts for your area are always delivered, even with categories turned off.
-          </Text>
-        </View>
+        {!isInitialLoad && preferences && (
+          <>
+            <View style={styles.list}>
+              {PREFERENCES.map(({ key, icon: Icon, title, subtitle }) => (
+                <Pressable
+                  key={key}
+                  onPress={() => toggle(key)}
+                  style={[styles.row, { borderColor: colors.line, backgroundColor: colors.surface }]}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: preferences[key] }}
+                  accessibilityLabel={title}
+                >
+                  <View style={[styles.rowIcon, { backgroundColor: colors.brandSoft }]}>
+                    <Icon size={18} color={colors.brand} />
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={[styles.rowTitle, { color: colors.foreground }]}>{title}</Text>
+                    <Text style={[styles.rowSubtitle, { color: colors.inkMuted }]}>{subtitle}</Text>
+                  </View>
+                  <View style={[styles.toggleTrack, { backgroundColor: preferences[key] ? colors.brand : colors.line }]}>
+                    <View style={[styles.toggleThumb, { backgroundColor: colors.controlThumb }, preferences[key] && styles.toggleThumbOn]} />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={[styles.footerCard, { backgroundColor: colors.surfaceSoft }]}>
+              <Bell size={17} color={colors.brand} />
+              <Text style={[styles.footerText, { color: colors.inkMuted }]}>
+                Critical safety alerts for your area are always delivered, even with categories turned off.
+              </Text>
+            </View>
+          </>
+        )}
       </Screen>
     </View>
   );

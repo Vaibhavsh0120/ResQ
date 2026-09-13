@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Keyboard, Mic, Volume2 } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
@@ -10,25 +10,31 @@ import { useVoiceAssistant } from '@/hooks/useVoiceAssistant';
 
 /**
  * Full-screen voice conversation with ResQ — reached from Home's "Ask
- * ResQ" composer row (see (tabs)/index.tsx) via its mic button. Talk
- * instead of type: tap the orb to speak, ResQ replies with real
- * text-to-speech (expo-speech) and the orb animates while it's listening
- * or talking, driven by useVoiceAssistant's phase/amplitude state.
+ * ResQ" composer row (see (tabs)/index.tsx) via its mic button, or by
+ * opening a previously-saved voice conversation from chat.tsx's history
+ * drawer (via the `threadId` param — see the effect below). Talk instead
+ * of type: tap the orb to speak, ResQ replies with real text-to-speech
+ * (expo-speech) and the orb animates while it's listening or talking,
+ * driven by useVoiceAssistant's phase/amplitude state.
  *
- * Speech-to-text is real on web (the browser's native SpeechRecognition
- * API — see src/services/voiceService.web.ts) but not yet wired natively
- * (needs a community package + dev-client rebuild that can't be
- * installed/verified in this build environment — see
- * src/services/voiceService.ts's header comment for the honest reason
- * and the exact swap-in point for later). On native today, this screen
- * shows a typed-input composer instead of a mic button — the reply still
- * comes back with full text-to-speech and the same animated orb, so the
- * "talk to ResQ" experience degrades to "type to ResQ, hear it reply"
- * rather than silently faking a transcript.
+ * Speech-to-text is real on both web (the browser's native
+ * SpeechRecognition API — voiceService.web.ts) and native (wraps
+ * expo-speech-recognition — voiceService.ts) as of 2026-09-12. The
+ * native path is typechecked against the library's real API but not yet
+ * verified on an actual device/simulator (no Xcode/Android Studio in the
+ * environment that wired it) — see voiceService.ts's header comment and
+ * README.md's "Voice input" section for exactly what to verify. If
+ * `voiceAvailable` is ever false (recognition genuinely unsupported on
+ * the device, or an unverified build issue), this screen falls back to a
+ * typed-input composer instead of a mic button — the reply still comes
+ * back with full text-to-speech and the same animated orb, so "talk to
+ * ResQ" degrades to "type to ResQ, hear it reply" rather than silently
+ * faking a transcript.
  */
 export default function Voice() {
   useHideTabBar();
   const { colors } = useAppTheme();
+  const { threadId } = useLocalSearchParams<{ threadId?: string }>();
   const {
     phase,
     turns,
@@ -41,8 +47,20 @@ export default function Voice() {
     startListening,
     stopListening,
     sendTyped,
+    interrupt,
+    loadThread,
     dismissError,
   } = useVoiceAssistant();
+
+  useEffect(() => {
+    if (threadId) loadThread(threadId);
+    // Intentionally only on mount / if the param itself changes — not on
+    // every loadThread identity change, which would refire this whenever
+    // useVoiceAssistant re-renders for unrelated reasons (phase changes,
+    // etc.) and interrupt an in-progress conversation the user is
+    // actively having.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId]);
 
   const [typedInput, setTypedInput] = useState('');
   const [showKeyboardInput, setShowKeyboardInput] = useState(!voiceAvailable);
@@ -83,6 +101,13 @@ export default function Voice() {
   const onOrbPress = () => {
     if (phase === 'listening') {
       stopListening();
+    } else if (phase === 'speaking' || phase === 'thinking') {
+      // Barge-in: stop ResQ mid-reply and start listening again right
+      // away, instead of forcing the user to wait for it to finish
+      // talking. `thinking` is included too — the reply hasn't started
+      // streaming yet, but the same tap-to-interrupt intent applies:
+      // the user wants to say something else now, not wait.
+      interrupt();
     } else if (phase === 'idle' || phase === 'error') {
       if (error) dismissError();
       startListening();
@@ -100,7 +125,7 @@ export default function Voice() {
     if (error) return error;
     if (phase === 'listening') return interimTranscript || 'Listening...';
     if (phase === 'thinking') return 'Thinking...';
-    if (phase === 'speaking') return 'Speaking...';
+    if (phase === 'speaking') return voiceAvailable ? 'Speaking... tap or talk to interrupt' : 'Speaking...';
     if (turns.length === 0) {
       return voiceAvailable
         ? `Tap the mic and talk to ResQ${firstName ? `, ${firstName}` : ''}.`
@@ -173,7 +198,7 @@ export default function Voice() {
           />
           <Pressable
             onPress={onOrbPress}
-            disabled={phase === 'thinking' || (!voiceAvailable && phase !== 'error')}
+            disabled={!voiceAvailable && phase !== 'error'}
             accessibilityRole="button"
             accessibilityLabel={phase === 'listening' ? 'Stop listening' : 'Start talking to ResQ'}
             style={[

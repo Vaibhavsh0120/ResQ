@@ -14,7 +14,7 @@ Phase 2 pass and may drift if Google changes the questionnaire.
 ## Headline answer: does the app collect or share user data?
 
 - **Shares data with third parties:** No. There is no backend
-  (see `PROGRESS.md`'s working assumptions) and no analytics/ads SDK in
+  (see AGENT.md's working assumptions) and no analytics/ads SDK in
   `package.json` — nothing is sent to ResQ's developers, Anthropic, or
   any other party.
 - **Collects data:** Yes, but only *on-device* — see below. Play
@@ -125,7 +125,7 @@ just a comment update) before the next store submission:
   data with third parties" and "encrypted in transit" both need
   re-answering for whichever domain switched over, not the whole app at
   once (services cut over one domain at a time by design — see
-  `PROGRESS.md` §5).
+  AGENT.md).
 - Adding any analytics, crash-reporting, or ads SDK.
 - Any change to what `exportLocalData()`
   (`src/services/localDataService.ts`) actually reads — it walks

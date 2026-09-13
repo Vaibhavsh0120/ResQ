@@ -26,7 +26,6 @@ export default function FamilyMemberDetail() {
   const [checkingIn, setCheckingIn] = React.useState(false);
 
   const person = (members ?? []).find((m) => m.id === id);
-  const statusColor = person?.tone === 'success' ? colors.brand : colors.warning;
 
   const onCheckIn = async () => {
     if (!id) return;
@@ -77,15 +76,24 @@ export default function FamilyMemberDetail() {
 
         {!loading && !error && person && (
           <>
-            <View style={styles.hero}>
-              <View style={[styles.avatar, { backgroundColor: colors.brandSoft }]}>
-                <Text style={[styles.avatarText, { color: colors.brandDeep }]}>{person.initials}</Text>
+            {/* Redesigned 2026-09-12 — was a plain centered avatar/name/
+                badge stack directly on the screen background, reading as
+                basic compared to guidance-result.tsx's hero treatment
+                elsewhere in the app. Now a brandDeep hero card (same
+                shadow/radius pattern as that screen) holding avatar,
+                name, relation and status together, so this drill-in
+                screen reads as considered rather than a bare list of
+                facts. All functionality below (call/message/locate, map,
+                check-in) is unchanged — only the presentation. */}
+            <View style={[styles.heroCard, { backgroundColor: colors.brandDeep, shadowColor: colors.shadowBrand }]}>
+              <View style={[styles.avatar, { backgroundColor: colors.onBrandOverlaySoft, borderColor: colors.onBrandHairline }]}>
+                <Text style={[styles.avatarText, { color: colors.onBrand }]}>{person.initials}</Text>
               </View>
-              <Text style={[styles.name, { color: colors.foreground }]}>{person.name}</Text>
-              <Text style={[styles.relation, { color: colors.inkMuted }]}>{person.relation}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: person.tone === 'success' ? colors.brandSoft : colors.warningSoft }]}>
-                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                <Text style={[styles.statusText, { color: statusColor }]}>{person.status}</Text>
+              <Text style={[styles.name, { color: colors.onBrand }]}>{person.name}</Text>
+              <Text style={[styles.relation, { color: colors.onBrandMuted }]}>{person.relation}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: colors.onBrandOverlaySoft }]}>
+                <View style={[styles.statusDot, { backgroundColor: person.tone === 'success' ? colors.onBrand : colors.warning }]} />
+                <Text style={[styles.statusText, { color: colors.onBrand }]}>{person.status}</Text>
               </View>
             </View>
 
@@ -95,7 +103,9 @@ export default function FamilyMemberDetail() {
                 disabled={!person.phone}
                 style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }, !person.phone && styles.actionButtonDisabled]}
               >
-                <Phone size={18} color={colors.brand} />
+                <View style={[styles.actionIcon, { backgroundColor: colors.brandSoft }]}>
+                  <Phone size={17} color={colors.brand} />
+                </View>
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Call</Text>
               </Pressable>
               <Pressable
@@ -103,14 +113,18 @@ export default function FamilyMemberDetail() {
                 disabled={!person.phone}
                 style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }, !person.phone && styles.actionButtonDisabled]}
               >
-                <MessageCircle size={18} color={colors.brand} />
+                <View style={[styles.actionIcon, { backgroundColor: colors.brandSoft }]}>
+                  <MessageCircle size={17} color={colors.brand} />
+                </View>
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Message</Text>
               </Pressable>
               <Pressable
                 onPress={onLocate}
                 style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.line }]}
               >
-                <MapPin size={18} color={colors.brand} />
+                <View style={[styles.actionIcon, { backgroundColor: colors.brandSoft }]}>
+                  <MapPin size={17} color={colors.brand} />
+                </View>
                 <Text style={[styles.actionLabel, { color: colors.foreground }]}>Locate</Text>
               </Pressable>
             </View>
@@ -121,7 +135,7 @@ export default function FamilyMemberDetail() {
             )}
 
             {person.latitude != null && person.longitude != null && (
-              <View style={styles.mapWrap}>
+              <View style={[styles.mapWrap, { borderColor: colors.line }]}>
                 <MiniMap
                   markers={[{ id: person.id, latitude: person.latitude, longitude: person.longitude, kind: 'user' }]}
                   height={150}
@@ -165,8 +179,19 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   notFound: { paddingTop: 40, alignItems: 'center' },
   notFoundText: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  hero: { alignItems: 'center', paddingVertical: 16, gap: 6 },
-  avatar: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  heroCard: {
+    alignItems: 'center',
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    gap: 6,
+    marginTop: 10,
+    borderRadius: radius.xl,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 1,
+    shadowRadius: 26,
+    elevation: 6,
+  },
+  avatar: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1 },
   avatarText: { fontSize: 22, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
   relation: { fontSize: 12 },
@@ -174,11 +199,12 @@ const styles = StyleSheet.create({
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 10, fontWeight: '700' },
   actionsRow: { flexDirection: 'row', gap: 9, marginTop: 20, marginBottom: 8 },
-  actionButton: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, borderWidth: 1, borderRadius: radius.lg },
+  actionButton: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, borderWidth: 1, borderRadius: radius.lg },
   actionButtonDisabled: { opacity: 0.4 },
+  actionIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 11, fontWeight: '700' },
   noPhoneNote: { fontSize: 10, lineHeight: 14, marginBottom: 16 },
-  mapWrap: { marginBottom: 20 },
+  mapWrap: { marginBottom: 20, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1 },
   sectionHeading: { marginBottom: 12 },
   h2: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3, marginTop: 4 },
   infoCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderWidth: 1, borderRadius: radius.md, marginBottom: 24 },

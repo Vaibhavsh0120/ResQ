@@ -35,7 +35,7 @@ export default function Login() {
 
   const onLogin = async () => {
     // No backend yet to look up a real name from this email (see
-    // PROGRESS.md — auth is a stub). Deriving a placeholder from the
+    // AGENT.md — auth is a stub). Deriving a placeholder from the
     // email itself, rather than hardcoding a fictional "Alex Chen", so a
     // real returning user doesn't see someone else's name across the app.
     const trimmedEmail = email.trim() || 'you@example.com';

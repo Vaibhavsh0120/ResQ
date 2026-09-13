@@ -19,13 +19,18 @@ export default function Safe() {
   const { colors } = useAppTheme();
   const { area, latitude, longitude } = useCurrentArea();
   // Real device coordinates now flow into the query once a GPS fix is
-  // available (PROGRESS.md Phase 1's useDeviceLocation) — mockSafePlaces.ts
+  // available (AGENT.md useDeviceLocation) — mockSafePlaces.ts
   // already has real Delhi-area coordinates, and safePlacesService.ts now
   // sorts by actual distance from the user when coordinates are present,
   // so "nearby" is real rather than a fixed static order.
   const { data: places, loading, error, refresh } = useSafePlaces({ latitude: latitude ?? undefined, longitude: longitude ?? undefined });
+  // Same isInitialLoad/isRefreshing split as updates.tsx/family.tsx: pull-
+  // to-refresh should keep the list mounted and let the native spinner
+  // communicate "refreshing" instead of flashing the list away and back.
+  const isInitialLoad = loading && !places;
+  const isRefreshing = loading && !!places;
   // Seeded from the user's profile area (single source of truth — see
-  // PROGRESS.md Phase 0), but kept as local state so a search here can be
+  // AGENT.md), but kept as local state so a search here can be
   // overridden per-session without touching the saved profile.
   const [district, setDistrict] = useState(area ?? 'Your area');
   const [districtSeeded, setDistrictSeeded] = useState(false);
@@ -51,7 +56,7 @@ export default function Safe() {
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <Header title="Safe places" showProfile onProfilePress={() => router.push('/profile')} />
-      <Screen>
+      <Screen onRefresh={refresh} refreshing={isRefreshing}>
         <View style={[styles.locationBanner, { borderColor: colors.line }]}>
           <View style={[styles.locationDot, { backgroundColor: colors.brandSoft }]}>
             <MapPin size={17} color={colors.brand} />
@@ -105,10 +110,10 @@ export default function Safe() {
           <Text style={[styles.h2, { color: colors.foreground }]}>Places you can go</Text>
         </View>
 
-        {loading && <LoadingState label="Finding places near you..." />}
-        {!loading && error && <ErrorState message={error} onRetry={refresh} />}
+        {isInitialLoad && <LoadingState label="Finding places near you..." />}
+        {!isInitialLoad && error && <ErrorState message={error} onRetry={refresh} />}
 
-        {!loading && !error && (
+        {!isInitialLoad && !error && (
           <View style={styles.list}>
             {(places ?? []).map(({ id, name, detail, status }) => (
               <Pressable

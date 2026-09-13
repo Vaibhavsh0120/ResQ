@@ -113,7 +113,13 @@ function RootStack() {
           {/* SOS opens full-screen from Home's SOS entry point — modal-style
               presentation matches the urgency (it isn't just another drill-in
               detail screen) and skips the usual slide-from-right animation
-              so it feels immediate. */}
+              so it feels immediate. gestureEnabled here is just this
+              screen's *default* (used before sos.tsx's own render commits
+              its first override) — sos.tsx renders its own <Stack.Screen
+              options={{ gestureEnabled: ... }}> that turns swipe-back on
+              except during the hold-to-confirm window, so it doesn't stay
+              hard-disabled the whole time this screen is open. See that
+              file for the reasoning. */}
           <Stack.Screen name="sos" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
           <Stack.Screen name="sos-history" />
         </Stack.Protected>

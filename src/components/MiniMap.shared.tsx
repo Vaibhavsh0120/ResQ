@@ -23,7 +23,7 @@ export type MiniMapMarker = {
 /** OpenFreeMap's public instance: no API key, no registration, and no
  * request/view limits by the operator's own stated policy — re-verified
  * live (2026-09-10) against openfreemap.org and the style URL itself
- * before wiring this in. See PROGRESS.md §3.1 for the full SDK decision.
+ * before wiring this in. See AGENT.md for the full SDK decision.
  * Used unchanged by both the native MapLibre view and the web MapLibre GL
  * JS instance. */
 export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';

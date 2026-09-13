@@ -368,10 +368,51 @@ the right one automatically per platform.
   `lastKnownLocation`, not replacing it) — there's no backend yet for a
   family member's own device to report a live position, so these are
   static snapshots seeded in `mockFamily.ts`, not live tracking.
-- See `PROGRESS.md` §3.1 for the full SDK-choice rationale and the
+- See AGENT.md for the full SDK-choice rationale and the
   per-screen review of where a map was and wasn't worth adding.
 
-### Running with maps (dev-client build)
+### Voice input (native speech-to-text)
+
+`app/voice.tsx`'s "Talk to ResQ" screen uses real speech-to-text
+everywhere: the browser's built-in Web Speech API on web
+(`src/services/voiceService.web.ts`, works in any modern browser tab, no
+setup needed), and `expo-speech-recognition` (wraps iOS's
+`SFSpeechRecognizer` and Android's `SpeechRecognizer` natively) on
+native (`src/services/voiceService.ts`) — same dev-client requirement as
+MapLibre above: **native code, doesn't run in plain Expo Go.** The
+package and its config plugin (`app.json`'s `plugins` array) are already
+installed/configured; you need the same one-time native rebuild as the
+Maps section above (`npx expo run:android` / `run:ios`, or an EAS
+development build) to get it compiled into your dev-client binary.
+
+If your dev-client build predates this package being added to
+`app.json`, you'll see the same kind of `Cannot find native module
+'ExpoSpeechRecognition'` error the Maps section describes for MapLibre
+— the fix is identical: re-run `npx expo run:ios`/`run:android` (or a
+fresh EAS build) to rebuild the native binary, not just `npx expo
+start`.
+
+**Permissions:** the app requests microphone + speech-recognition access
+the first time you tap the mic (`ExpoSpeechRecognitionModule.
+requestPermissionsAsync()` in `voiceService.ts`) — same iOS System
+Settings flow as any other permission prompt. If you've already denied
+it once, iOS won't ask again; go to Settings → ResQ (or Settings → Siri
+& Search → Dictation, if Dictation itself is off system-wide) to
+re-enable it.
+
+**Not yet verified on a real device or simulator** — this integration
+was written and typechecked against the library's real, published type
+definitions, but the sandbox that wrote it has no Xcode/Android Studio
+to actually build and run it. After your first native rebuild, do a full
+round trip on both platforms before trusting it: open `/voice`, tap the
+mic, say something, confirm the transcript appears, ResQ replies, and
+you hear it spoken back. If something's off, `voiceService.ts`'s own
+comments explain the API surface it's built against — cross-check
+against [the library's README](https://github.com/jamsch/expo-speech-recognition)
+for anything platform-specific (iOS-only options, Android quirks
+around single-word recognition, etc.) it documents in detail.
+
+
 
 `expo-dev-client` is already installed and configured (`app.json`'s
 `plugins` array includes both `@maplibre/maplibre-react-native` and

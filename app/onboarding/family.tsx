@@ -21,7 +21,7 @@ export default function FamilyStep() {
 
   // Starts empty — this used to pre-seed a fake "Maya Chen" entry, which
   // meant every new user's family circle looked already-populated with a
-  // person they never added (see PROGRESS.md §4.3). A real draft, loaded
+  // person they never added (see AGENT.md). A real draft, loaded
   // below, is what should pre-fill this now.
   const [members, setMembers] = useState<FamilyMemberDraft[]>([]);
   const [name, setName] = useState('');

@@ -4,12 +4,12 @@
  * free-text "DD / MM / YYYY" format (see onboardingService.ts's
  * OnboardingPersonal.dob doc comment).
  *
- * India-first launch (see PROGRESS.md's working assumptions) — the DPDP
+ * India-first launch (see AGENT.md's working assumptions) — the DPDP
  * Act 2023 sets 18 as the age below which a "Data Fiduciary" needs
  * verifiable parental/guardian consent before processing a child's
  * personal data (Section 9). ResQ has no backend to verify a parent's
  * identity or consent today, so rather than fake a consent flow this app
- * can't actually honor, the honest choice (documented in PROGRESS.md's
+ * can't actually honor, the honest choice (documented in AGENT.md's
  * decisions log) is: registration requires being 18+. A real
  * parental-consent flow is Phase 3+ scope, once there's a backend to
  * receive and verify it against.

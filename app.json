@@ -61,7 +61,14 @@
       "expo-video",
       "expo-secure-store",
       "expo-dev-client",
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "ResQ uses your microphone so you can talk to ResQ instead of typing.",
+          "speechRecognitionPermission": "ResQ uses speech recognition to turn what you say into text for ResQ to respond to."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

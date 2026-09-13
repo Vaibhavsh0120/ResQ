@@ -21,7 +21,7 @@ export default function PersonalStep() {
 
   // Pre-fill from a previously-saved draft, if the user is returning to
   // this step (e.g. backed up from a later step, or resumed after quitting
-  // onboarding partway through — see PROGRESS.md §2.5).
+  // onboarding partway through — see AGENT.md).
   useEffect(() => {
     getOnboardingPersonal().then((saved) => {
       if (!saved) return;

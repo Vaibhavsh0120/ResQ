@@ -19,7 +19,7 @@ it's for today, and there's no reason to change it for that purpose.
   Apple Developer Program membership).
 - The Android APK can still be sideloaded onto a real device for
   testing (with "install from unknown sources" allowed) — this is
-  exactly the debug-APK-only limitation PROGRESS.md's Phase 0/2 notes
+  exactly the debug-APK-only limitation AGENT.md notes
   flag, and sideloading is still genuinely useful for that.
 - The iOS IPA **cannot** be installed on a real iPhone/iPad this way at
   all — iOS refuses to run any unsigned binary on real hardware,
@@ -94,5 +94,5 @@ ratings that don't belong in a CI workflow).
 
 Once real credentials exist, run it the same way as the existing
 workflow — Actions tab → "Build Mobile Release (Signed)" →
-"Run workflow". See PROGRESS.md's Phase 2 entry for the corresponding
+"Run workflow". See AGENT.md for the corresponding
 checklist line.

@@ -15,7 +15,7 @@ import {
 // for web builds automatically via the standard `.web.tsx` platform
 // extension, so there's no runtime Platform.OS branch anymore: this file
 // only ever bundles for web, and MiniMap.tsx only ever bundles for
-// iOS/Android. See PROGRESS.md §3.1 for why real web maps were originally
+// iOS/Android. See AGENT.md for why real web maps were originally
 // scoped out, and the 2026-09-10 follow-up entry for the risk assessment
 // this implementation resolves.
 //
@@ -150,7 +150,7 @@ type Props = {
 
 /**
  * Shared map surface for safe.tsx, place-detail.tsx, and family-member.tsx
- * — see PROGRESS.md §3.1 for the design rationale. Renders a real MapLibre
+ * — see AGENT.md for the design rationale. Renders a real MapLibre
  * GL JS map over OpenFreeMap vector tiles; falls back to the same
  * stylized static-pin illustration used everywhere else in the app
  * whenever there are no valid coordinates to show.

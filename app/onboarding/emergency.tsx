@@ -29,7 +29,7 @@ export default function EmergencyStep() {
 
   // Starts empty — this used to pre-seed two fake contacts ("Maya Chen",
   // "David Chen"), which along with family.tsx's own fake seed meant two
-  // separate lists both claimed the same made-up person (see PROGRESS.md
+  // separate lists both claimed the same made-up person (see AGENT.md
   // §4.3). A real draft, loaded below, pre-fills this now instead.
   const [contacts, setContacts] = useState<Contact[]>([]);
 

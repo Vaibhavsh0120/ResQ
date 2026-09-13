@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { ArrowLeft, Check, LifeBuoy, Phone, Users } from '@/components/icons';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { radius } from '@/theme/colors';
@@ -13,7 +13,7 @@ import { mapsLinkForCoords } from '@/utils/location';
 import { useHideTabBar } from '@/context/useHideTabBar';
 import { MiniMap } from '@/components/MiniMap';
 
-// India's unified emergency number — see PROGRESS.md's launch-market note
+// India's unified emergency number — see AGENT.md's launch-market note
 // (India first). Revisit this constant if/when ResQ supports other regions.
 const EMERGENCY_NUMBER = '112';
 
@@ -37,21 +37,24 @@ function notifyHaptic() {
 
 /**
  * Full-screen SOS flow — reached from Home's SOS button (see app/(tabs)/
- * index.tsx). This is Phase 1's highest-priority item (PROGRESS.md §2.4):
+ * index.tsx). This is Phase 1's highest-priority item (AGENT.md):
  * onboarding has always promised SOS behavior, but no trigger existed
  * anywhere in the app until now.
  *
  * Deliberate-trigger design: the button must be held for HOLD_DURATION_MS,
  * not tapped, so a pocket-press or accidental tap can't fire it. Releasing
- * early safely resets. Once fired, the two actions this can honestly take
- * with zero backend are: open `tel:112` (the user still has to tap call —
- * iOS/Android don't allow apps to place calls without a confirmation
- * dialog, and pretending otherwise would be dishonest) and open one SMS
- * share sheet per family member who has a phone number on file, matching
+ * early safely resets. Swipe-back (and the top-left close button) are
+ * available except during that hold window — see the <Stack.Screen>
+ * options render below for why. Once fired, the two actions this can
+ * honestly take with zero backend are: open `tel:112` (the user still has
+ * to tap call — iOS/Android don't allow apps to place calls without a
+ * confirmation dialog, and pretending otherwise would be dishonest) and
+ * open one SMS share sheet per family member who has a phone number on
+ * file, matching
  * the existing tel:/sms: pattern already used in family-member.tsx.
  *
  * Runs against `useFamily()`, which is backed by mockFamily.ts today — this
- * intentionally does not wait on onboarding persistence (PROGRESS.md §7
+ * intentionally does not wait on onboarding persistence (AGENT.md
  * explicitly calls this out as fine to build in parallel).
  *
  * **2026-09-09**: the SMS body and history log now include a real Google
@@ -195,9 +198,26 @@ export default function Sos() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      {/* Swipe-back is enabled except during the hold-to-confirm window
+          (phase === 'holding') — the layout's static gestureEnabled: false
+          (app/_layout.tsx) was there to stop an accidental swipe from
+          discarding an emergency mid-trigger, but that's only a real risk
+          while actively holding the button. Once idle (not started yet)
+          or confirmed (already fired, reviewing call/message actions),
+          swiping back is exactly as safe as tapping the existing close
+          button, so it's enabled there — this <Stack.Screen> merges with
+          and overrides the layout's static options, re-evaluating
+          whenever `phase` changes (expo-router's per-screen dynamic
+          options pattern; see the Stack guide's "configure from within
+          the route's component" section). */}
+      <Stack.Screen options={{ gestureEnabled: phase !== 'holding' }} />
       <View style={[styles.topBar, { paddingTop: 54 }]}>
         <Pressable
-          onPress={phase === 'confirmed' ? finalizeAndClose : () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          onPress={
+            phase === 'confirmed'
+              ? finalizeAndClose
+              : () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))
+          }
           accessibilityLabel="Close SOS"
           accessibilityRole="button"
           style={[styles.closeButton, { backgroundColor: colors.surface }]}

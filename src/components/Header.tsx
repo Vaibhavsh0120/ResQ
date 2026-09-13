@@ -18,7 +18,7 @@ import { Logo } from './Logo';
 // exceed the fixed height, squeezing or clipping the content row up
 // against/behind the status bar. Height is now derived from the same
 // insets.top value the padding uses, so it always has room.
-const HEADER_CONTENT_HEIGHT = 50;
+export const HEADER_CONTENT_HEIGHT = 50;
 
 type Props = {
   title?: string;

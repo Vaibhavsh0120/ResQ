@@ -72,6 +72,28 @@ jest.mock('expo-speech', () => ({
   isSpeakingAsync: jest.fn(() => Promise.resolve(false)),
 }));
 
+// src/services/voiceService.ts (native) wraps expo-speech-recognition's
+// native module for real on-device STT — see that file's header comment.
+// Like the maplibre/reanimated mocks elsewhere in this file, the real
+// native module doesn't exist under Jest (`Cannot find native module
+// 'ExpoSpeechRecognition'`), so this mock exists purely so
+// app/voice.tsx's import chain (-> useVoiceAssistant -> voiceService ->
+// expo-speech-recognition) can mount without throwing. isRecognitionAvailable
+// returning false here is intentional and consistent with jest-expo's
+// non-native test environment: no `available: true` path in voice.tsx
+// gets exercised by this smoke test either way, so there's no real
+// coverage lost by not simulating a "recognition available" device.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    isRecognitionAvailable: jest.fn(() => false),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, status: 'denied', canAskAgain: true, expires: 'never' })),
+  },
+}));
+
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false), dismissAll: jest.fn() },
   useLocalSearchParams: () => mockParams.current,
@@ -79,6 +101,20 @@ jest.mock('expo-router', () => ({
     const React = require('react');
     React.useEffect(cb, []);
   },
+  // Backs useHideTabBar.ts's beforeRemove listener (added 2026-09-12 so
+  // the tab bar restores on every back path — button, gesture, hardware
+  // back, browser back — not just an explicit button tap; see that
+  // file's doc comment). addListener returning an unsubscribe function
+  // matches the real navigation object's shape closely enough for a
+  // mount smoke test — no real navigation event needs to actually fire
+  // here, only that .addListener() exists and doesn't throw.
+  useNavigation: () => ({ addListener: jest.fn(() => jest.fn()) }),
+  // Stack.Screen (used by sos.tsx to set gestureEnabled dynamically per
+  // phase — see that file) renders no visible output of its own in real
+  // expo-router either; it's read by the navigator, not the DOM/view
+  // tree. A component returning null is enough for a mount smoke test —
+  // no real navigation options need to be exercised here.
+  Stack: { Screen: () => null },
 }));
 
 jest.mock('expo-blur', () => {

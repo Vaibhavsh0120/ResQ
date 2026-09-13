@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { streamChatReply, fetchChatThreadMessages } from '@/services/chatService';
+import { streamChatReply, fetchChatThreadMessages, saveChatThread } from '@/services/chatService';
 import { buildWelcomeMessage } from '@/data/mockChat';
 import { useAuth } from '@/context/AuthContext';
 import { ChatMessage, ChatStreamEvent } from '@/types';
@@ -16,6 +16,12 @@ export function useChat() {
   const [threadError, setThreadError] = useState<string | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Mirrors activeThreadId, readable synchronously from inside the
+  // streaming callback below (state itself would be a stale closure at
+  // that point — the callback is created once per `send` call and
+  // activeThreadId may change between when it's created and when the
+  // stream actually finishes).
+  const activeThreadIdRef = useRef<string | null>(null);
 
   const send = useCallback(
     async (text: string) => {
@@ -32,21 +38,44 @@ export function useChat() {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // Kept in sync with the messages state as events arrive, so the
+      // save below (after the stream settles) has the true final
+      // content without needing a second read of React state — setState
+      // updaters run async and reading `messages` here would risk a
+      // stale value from before this send() call's own updates applied.
+      let finalMessages: ChatMessage[] = [];
+
       const handleEvent = (event: ChatStreamEvent) => {
-        setMessages((prev) =>
-          prev.map((m) => {
+        setMessages((prev) => {
+          const next = prev.map((m) => {
             if (m.id !== assistantId) return m;
             if (event.type === 'token') return { ...m, text: m.text + event.text };
             if (event.type === 'sources') return { ...m, sources: event.sources };
             if (event.type === 'done') return { ...m, pending: false };
             if (event.type === 'error') return { ...m, pending: false, text: m.text || event.message };
             return m;
-          })
-        );
+          });
+          finalMessages = next;
+          return next;
+        });
       };
 
       try {
         await streamChatReply(trimmed, [...messages, userMessage], handleEvent, controller.signal);
+        // A reply that was aborted (e.g. the user navigated away or
+        // started a new conversation mid-stream) shouldn't be saved
+        // half-finished — only persist once the exchange actually
+        // completed. The welcome message alone (no real exchange yet)
+        // never reaches this point since send() requires trimmed text.
+        if (!controller.signal.aborted && finalMessages.length > 0) {
+          const saved = await saveChatThread({
+            id: activeThreadIdRef.current ?? undefined,
+            source: 'chat',
+            messages: finalMessages,
+          });
+          activeThreadIdRef.current = saved.id;
+          setActiveThreadId(saved.id);
+        }
       } finally {
         setSending(false);
       }
@@ -56,6 +85,7 @@ export function useChat() {
 
   const startNewConversation = useCallback(() => {
     abortRef.current?.abort();
+    activeThreadIdRef.current = null;
     setActiveThreadId(null);
     setMessages([buildWelcomeMessage(firstName)]);
   }, [firstName]);
@@ -68,6 +98,7 @@ export function useChat() {
       try {
         const threadMessages = await fetchChatThreadMessages(threadId);
         setMessages(threadMessages);
+        activeThreadIdRef.current = threadId;
         setActiveThreadId(threadId);
       } catch (err) {
         setThreadError(err instanceof Error ? err.message : 'Could not load that conversation.');

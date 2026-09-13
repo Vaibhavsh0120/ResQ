@@ -5,7 +5,7 @@ import { useDeviceLocation } from './useDeviceLocation';
  * Single source of truth for "what area is the user in" — previously
  * hardcoded independently as "Riverside district" / "Near Riverside Park"
  * across updates.tsx, safe.tsx, family.tsx, family-member.tsx, and
- * report.tsx (see PROGRESS.md Phase 0).
+ * report.tsx (see AGENT.md).
  *
  * **2026-09-09 (Phase 1): now prefers live device location over the
  * profile's static home address**, exactly as this hook's own comment

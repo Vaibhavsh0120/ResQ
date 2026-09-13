@@ -3,7 +3,7 @@ import { LegalDocument } from '@/components/LegalDocument';
 
 // ── Real content, not boilerplate ──────────────────────────────────────
 // This describes what ResQ *actually* does today — a local-only app with
-// no backend (see PROGRESS.md's working assumptions). Every claim below
+// no backend (see AGENT.md's working assumptions). Every claim below
 // was checked against the real storage keys and permission strings in
 // this codebase (src/services/*.ts's AsyncStorage keys, app.json's
 // expo-location/expo-image-picker/expo-notifications plugin config)
@@ -20,10 +20,10 @@ import { LegalDocument } from '@/components/LegalDocument';
 //
 // This is app copy, not a legal instrument — before a real public launch,
 // this should be reviewed by counsel familiar with India's DPDP Act 2023
-// (this app's first launch market — see PROGRESS.md) and any other
+// (this app's first launch market — see AGENT.md) and any other
 // jurisdiction it ships into, and the reviewed text should also be hosted
 // at a public URL (Play Store's Data Safety section requires a live link,
-// not just in-app text — see PROGRESS.md's Phase 2 notes).
+// not just in-app text — see AGENT.md notes).
 const LAST_UPDATED = 'September 10, 2026';
 
 export default function PrivacyPolicy() {
@@ -93,7 +93,7 @@ export default function PrivacyPolicy() {
         {
           heading: '8. Contact',
           body: [
-            'This build of ResQ does not yet have a live support inbox or a hosted version of this policy. Both are tracked as an open item for this app\'s next compliance pass — see this project\'s PROGRESS.md if you\'re a contributor looking for the current status.',
+            'This build of ResQ does not yet have a live support inbox or a hosted version of this policy. Both are tracked as an open item for this app\'s next compliance pass — see this project\'s AGENT.md if you\'re a contributor looking for the current status.',
           ],
         },
       ]}

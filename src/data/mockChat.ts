@@ -1,4 +1,4 @@
-import { ChatMessage, ChatThread, ChatThreadSummary } from '@/types';
+import { ChatMessage, ChatThread } from '@/types';
 
 /**
  * The greeting shown at the start of every new conversation. Personalized
@@ -19,7 +19,7 @@ export const mockChatSuggestions = ['What goes in a go-bag?', 'How do I make a p
 /**
  * Full message history for each previous thread, so tapping a row in the
  * history drawer can actually load that conversation instead of just
- * closing the drawer (see PROGRESS.md Phase 0). A real backend replaces
+ * closing the drawer (see AGENT.md). A real backend replaces
  * this with a `/v1/chat/threads/:id` fetch — useChat's loadThread already
  * treats this as async so that swap needs no UI change.
  */
@@ -28,6 +28,7 @@ export const mockChatThreads: ChatThread[] = [
     id: 'thread-1',
     title: 'Building a go-bag',
     updatedAt: 'Earlier this week',
+    source: 'chat',
     messages: [
       { id: 'thread-1-msg-1', role: 'user', text: 'What should I keep in a go-bag?' },
       {
@@ -48,6 +49,7 @@ export const mockChatThreads: ChatThread[] = [
     id: 'thread-2',
     title: 'Safe places nearby',
     updatedAt: 'Earlier this week',
+    source: 'chat',
     messages: [
       { id: 'thread-2-msg-1', role: 'user', text: 'Where can I find a safe place near me?' },
       {
@@ -61,6 +63,7 @@ export const mockChatThreads: ChatThread[] = [
     id: 'thread-3',
     title: 'Family check-in plan',
     updatedAt: 'Earlier this week',
+    source: 'voice',
     messages: [
       { id: 'thread-3-msg-1', role: 'user', text: 'How do I set up a check-in plan with my family?' },
       {
@@ -71,11 +74,3 @@ export const mockChatThreads: ChatThread[] = [
     ],
   },
 ];
-
-export function findMockThreadSummaries(): ChatThreadSummary[] {
-  return mockChatThreads.map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
-}
-
-export function findMockThreadMessages(threadId: string): ChatMessage[] | undefined {
-  return mockChatThreads.find((t) => t.id === threadId)?.messages;
-}

@@ -34,7 +34,7 @@ type Props = {
 
 /**
  * Shared map surface for safe.tsx, place-detail.tsx, and family-member.tsx
- * — see PROGRESS.md §3.1 for the design rationale. Renders a real MapLibre
+ * — see AGENT.md for the design rationale. Renders a real MapLibre
  * view over OpenFreeMap vector tiles; falls back to the same stylized
  * static-pin illustration used everywhere else in the app whenever there
  * are no valid coordinates to show (e.g. a family member with no location

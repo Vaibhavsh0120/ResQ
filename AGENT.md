@@ -1,18 +1,41 @@
 # AGENT.md — ResQ
 
-Concise AI/human working memory for this repo. For full historical detail
-and design rationale, see `PROGRESS.md` (this project's own long-form
-session log, ~2000 lines, maintained since before this file existed —
-don't duplicate it here, link into it by §).
+Concise AI/human working memory for this repo. This is the sole source
+of project history and rationale — there is no separate long-form log
+file, so anything worth remembering belongs here.
 
 ## Project Overview
 
 **ResQ** — a personal-safety Expo/React Native app (SOS, medical profile,
 family circle, safe-places finder, disaster guidance). Portfolio/resume-
-quality build, not heading to a real store submission (see PROGRESS.md's
-"Working assumptions"). India-first (emergency number 112, DPDP Act 2023).
+quality build, not heading to a real store submission — see "Project
+goal clarified as portfolio-quality" under Important Decisions for what
+that does and doesn't mean for outstanding gaps. India-first (emergency
+number 112, DPDP Act 2023).
 Runs entirely on local mock data — **no backend exists yet**; Phase 3
 (build one from scratch) is the next real unblocked decision.
+
+**Standing direction (set 2026-09-12, governs all frontend work until
+told otherwise):** push as much real functionality into the frontend as
+honestly possible — real local persistence (secureStorage/AsyncStorage,
+matching the existing `familyService.ts`/`profileService.ts` pattern),
+real client-side logic, real UX — so that when Phase 3's backend arrives,
+it only has to take over the things that genuinely require a server:
+cross-device sync, real auth (password verification, sessions, token
+refresh), a real AI backend, anything needing a shared source of truth
+across users/devices. The test for any given feature: "can this be fully
+real on-device today, with data that persists across app restarts, even
+though it doesn't sync anywhere yet?" If yes, build it for real now —
+don't defer it to the backend plan just because a backend will
+eventually also touch it. If no (it fundamentally needs a server to be
+real, not just to sync), implement the best honest frontend
+approximation, say so plainly, and add it to this file's TODO/Known Gaps
+as backend-dependent work — never silently skip it or silently fake it
+as if it were fully real. This is why, for example, chat/voice
+conversation history moved from "planned backend work" to "build it for
+real now" — nothing about persisting a conversation locally needs a
+server; only cross-device sync of that history does, and that's the
+part staying on the backend TODO.
 
 ## Repository Structure
 
@@ -41,8 +64,20 @@ docs/data-safety.md    Play Store Data Safety mapping doc
 - **No hardcoded colors** — everything through `src/theme/colors.ts`
   tokens (`colors.brand`, `colors.onDanger`, etc.). See README's
   "Theming" section.
+- **Layering: `screen → hook → service → (mock | real)`.** Every
+  feature follows this — screens never import a service or mock data
+  directly. To add a new backend-connected feature: (1) add/extend a
+  type in `src/types/index.ts`; (2) add mock data in
+  `src/data/mock<Domain>.ts` matching that type exactly; (3) add a
+  service in `src/services/<domain>Service.ts` with the
+  `if (config.useMockData) { ... } return apiRequest(...)` pattern —
+  copy any existing service as a template; (4) add a hook in
+  `src/hooks/use<Domain>.ts`, usually a thin `useAsync(fetchThing, [])`
+  wrapper; (5) call the hook from the screen.
 - **Mock-data services** in `src/services/*Service.ts` are the seam for
   a future real backend — each returns the same shape a real API would.
+  `config.useMockData` is one global flag for every domain, not
+  per-domain — fine for now, a real Phase 4 cutover item.
 - **At-rest encryption**: `src/services/secureStorage.ts` — AES-256-GCM,
   key in `expo-secure-store`, used for profile/medical/family data.
 - **Platform-specific files**: this project uses RN's standard
@@ -50,6 +85,16 @@ docs/data-safety.md    Play Store Data Safety mapping doc
   per platform automatically) rather than runtime `Platform.OS` branches,
   where a whole implementation differs by platform — see `MiniMap.tsx`
   vs `MiniMap.web.tsx` as the reference pattern.
+- **No `react-query`** — a hand-rolled `useAsync` hook instead
+  (`src/hooks/useAsync.ts`). Deliberate, every data-fetching hook
+  follows it.
+- **Auth is a stub** — `login()`/`register()` accept anything; real
+  screens correctly read the signed-in `user` object, they just don't
+  populate it from a real backend yet (Phase 3). Registration's DOB/18+
+  gate is a genuine client-side check, not a stub — it's the *identity*
+  behind the account that's still unverified, not the age math itself.
+- **Chat streaming assumes newline-delimited JSON** from a future
+  backend — adjust `chatService.ts` if the real API uses SSE instead.
 
 ## Development Commands
 
@@ -57,26 +102,257 @@ docs/data-safety.md    Play Store Data Safety mapping doc
 npm install                        # postinstall syncs maplibre-gl's worker
                                     # build into public/vendor/ automatically
                                     # (see scripts/sync-maplibre-worker.js) —
-                                    # expo install fails in network-restricted
-                                    # sandboxes (hits expo.dev's version-check
-                                    # API), use plain npm install instead
-npx tsc --noEmit                    # typecheck
-npx jest --config jest.config.js    # smoke + unit tests (53 tests)
-npx expo export --platform web      # verifies the web build actually bundles
+                                    # works in this sandbox as of 2026-09-12
+                                    # (npm registry is reachable); expo
+                                    # install still fails (needs expo.dev's
+                                    # version-check API, not on the allowlist)
+                                    # — use plain npm install/npm ci instead
+npx tsc --noEmit                    # typecheck — clean as of 2026-09-13
+npx jest --config jest.config.js    # smoke + unit tests — 71/71 pass as of 2026-09-13
+npx expo export --platform web      # verifies the web build actually bundles — 35/35 routes, 2026-09-13
 npx expo start --web                # dev server (needs a real browser to view)
 npx expo run:ios|android            # native — needs a dev-client build for MapLibre
-npm audit                           # 0 vulnerabilities as of 2026-09-11
+npm audit                           # 0 vulnerabilities as of 2026-09-12
 ```
+
+## Data Model & Pages Reference
+
+**Data model** (`src/types/index.ts` unless noted) — additions beyond
+an initial scaffold, kept here since they're not obvious from the types
+file alone:
+- `FamilyMember.phone`, `.lastKnownLocation`, `.isPrimaryEmergencyContact`,
+  `.inviteStatus` (`'pending' | 'accepted'`), `.latitude`/`.longitude`
+  (optional — only set for members who've actually shared a location;
+  never fabricated for ones who haven't).
+- `SafePlace.phone`; `NotificationItem`/`NotificationKind`; `ChatThread`
+  (`ChatThreadSummary` + `messages`); `MedicalProfile` (allergies,
+  conditions, usesMobilityAid, hasVisualImpairment, hasHearingImpairment);
+  `ProfileData.dob`/`.bloodType`; `SosEvent` (id, triggeredAt,
+  calledEmergencyNumber, contactsNotified, location).
+- **Deliberately not added**: a separate `EmergencyContact` type — one
+  `FamilyMember.isPrimaryEmergencyContact` flag covers it instead, since
+  onboarding's family-circle and emergency-contact steps used to keep
+  two overlapping lists that could drift; now one merged, de-duplicated
+  circle. A structured address on `ProfileData` — stays a single
+  free-text field since every screen reading `location` expects a plain
+  string. A second registration-time DOB field on `ProfileData` —
+  `register.tsx`'s 18+ gate validates inline and only uses the value for
+  math, it doesn't silently pre-fill onboarding's own separate `dob`
+  field (which is skippable and shouldn't assume a value the user
+  didn't expect remembered).
+
+**Map SDK: MapLibre + OpenFreeMap**, not `react-native-maps` — chosen
+for zero API key on either platform (react-native-maps defaults to paid
+Google Maps on Android) and OpenFreeMap's no-rate-limit tile hosting
+(survived a real 100k req/s spike in Aug 2025 per their own postmortem).
+Setup needs a dev-client rebuild either way — this doesn't work in plain
+Expo Go. Maps are deliberately scoped to 3 screens with real value
+(`safe.tsx`, `place-detail.tsx`, `family-member.tsx` when a member has
+coordinates on file), not added to every screen with a coordinate —
+`report.tsx` (free-text location field, a map doesn't clarify that) and
+`updates.tsx`/`family.tsx`'s list view stay map-free by design.
+`sos.tsx`'s confirmed screen also has one now (added 2026-09-11, shown
+only when a GPS fix exists). Web uses `maplibre-gl` v6.9.0 (pinned
+exact, not v5 — see Important Decisions for the CVE that forced the
+v5→v6 migration and how the ESM/worker problem that originally kept it
+on v5 was actually solved) via a platform-split
+`MiniMap.shared.tsx`/`MiniMap.tsx`/`MiniMap.web.tsx`, not `react-map-gl`.
+
+**Pages map** — current status of every route not already covered in
+Completed Work above:
+
+| Route | Status |
+|---|---|
+| `app/index.tsx` | Splash/startup router. Solid. |
+| `app/login.tsx`, `register.tsx`, `forgot-password.tsx` | Real local flows; auth itself is a stub (see Architecture) pending Phase 3. |
+| `app/privacy-policy.tsx`, `terms.tsx` | Real, app-specific content; not hosted at a public URL (portfolio scope). |
+| `app/onboarding/*.tsx` (5 steps) | All real persistence via `onboardingService.ts`, merging into the real stores on completion. |
+| `app/(tabs)/index.tsx` (Home) | Real greeting/date/counts; SOS entry point. |
+| `app/(tabs)/updates.tsx`, `report.tsx`, `family.tsx`, `safe.tsx` | All real data + persistence; `family.tsx` needs real backend-side invite accept/decline (Phase 3). |
+| `app/chat.tsx`, `voice.tsx` | Real conversation persistence (`chatService.ts`), sources rendering, mic-interrupt/barge-in. |
+| `app/readiness.tsx`, `alert-preferences.tsx`, `privacy-security.tsx` | All three now genuinely persist their toggles (audit closed 2026-09-13 — see Completed Work). |
+| `app/guidance-result.tsx`, `family-member.tsx`, `place-detail.tsx`, `update-detail.tsx` | Real data, real maps where applicable, all individually audited clean. |
+| `app/profile.tsx` | Real persistence, Medical ID card, no loading-flash. |
+| `app/notifications.tsx`, `sos-history.tsx` | Local storage only (real, not mocked), real destinations. |
+| `app/sos.tsx` | Working press-and-hold trigger, real Maps link, local logging. Needs push/alarm + hardware trigger (Phase 3/5). |
+
+**Missing screens, not yet built**: `help-support.tsx`; an internal
+moderation/verification tool (Phase 3, backend-dependent).
 
 ## TODO
 
-No open task. Both plans below (2026-09-11 session 2, and the earlier
-2026-09-11 nav/UX pass) are complete — see Completed Work for what
-shipped and Known Gaps for what's still unverified beyond static/syntax
-checks. If a new task starts, write its plan here before implementing,
-per the standard workflow.
+**Open task: the critical/premium-quality review — not started.**
+
+The hardcoded-data audit that preceded this (find screens that silently
+reset/fake persistence) is fully closed and verified as of 2026-09-13 —
+see Completed Work for what it found and fixed. Don't re-run it from
+scratch; it should only resurface if new screens/features are added.
+
+This review is a distinct, substantial piece of work from that audit —
+the audit asked "does this pretend to be real when it isn't"; this asks
+"is this actually good, professional, premium work" even where a screen
+IS honestly wired to mock data (UX friction, error-handling gaps,
+accessibility, consistency, edge cases, anything a careful reviewer
+would flag before calling a screen done). Don't skip it just because the
+audit already found and fixed some things — different category of issue.
+
+- No plan written yet for how to scope/sequence the critique (which
+  screens first, what counts as in-scope vs. a visual-redesign concern)
+  — start there before diving into individual screens.
+- The user's *next* session after this one will be a full visual
+  redesign (light/dark theme, purple accent on neutral black/white,
+  prompt already shared in an earlier conversation) — stays explicitly
+  out of scope for this review, but the critique should still surface
+  functional/UX issues worth fixing independent of that later visual
+  pass, not visual-design opinions the redesign session will supersede
+  anyway.
+- Known Gaps below lists specific, still-open items (voice/chat gesture
+  feel, web map pixel-rendering) that a real browser/device can close
+  quickly — worth folding into this review's pass rather than treating
+  as separate, since they're exactly the kind of "does this actually
+  work well" question the review is for.
 
 ## Completed Work
+
+- **Hardcoded-data audit (2026-09-12 → closed 2026-09-13), user-
+  requested — found and fixed 3 real "silently resets, never actually
+  saves" bugs, all verified (typecheck + jest + web export all green):**
+  - **`alert-preferences.tsx`'s weather/community/traffic/family
+    toggles** were local `useState` initialized to hardcoded defaults
+    every mount — nothing the user chose ever persisted. Fixed with a
+    new `src/services/alertPreferencesService.ts` (plain AsyncStorage —
+    these are just category on/off flags, no personal data) +
+    `src/hooks/useAlertPreferences.ts` (optimistic toggle, same pattern
+    as `useReadiness.ts`'s `toggleItem`).
+  - **`readinessService.ts`'s `toggleReadinessItem`** computed the
+    updated checklist/score correctly but never wrote it anywhere —
+    `useReadiness.ts`'s `override` was purely in-memory, so every
+    checked-off item reverted to `mockReadiness`'s hardcoded `done:
+    true` on restart. Fixed the same way (plain AsyncStorage, storing
+    which item ids are done; `fetchReadiness` overlays that onto the
+    mock checklist and recomputes the score). Covered by
+    `__tests__/readinessPersistence.test.ts` (4 tests: default state,
+    toggle-survives-refetch, score recomputation, un-toggling).
+  - **`privacy-security.tsx`'s "Share live location" / "Visible to my
+    circle" toggles** (found 2026-09-13, continuing the same audit) —
+    identical bug: local `useState(true)`, no service backing either
+    flag, confirmed via grep that neither was read anywhere else in the
+    codebase. Fixed with `src/services/privacySettingsService.ts` +
+    `src/hooks/usePrivacySettings.ts` (same AsyncStorage/optimistic-
+    toggle pattern as the two fixes above), wired into
+    `privacy-security.tsx` with a proper `isInitialLoad` gate (was
+    previously rendering both loading and content at once, the same
+    profile.tsx flash bug fixed earlier — now consistent). Covered by
+    `__tests__/privacySettings.test.ts` (5 tests, including a missing-
+    key-merges-with-defaults case and corrupted-storage fallback).
+    `localDataService.ts`'s "delete my account" needed no change — it
+    already wipes AsyncStorage generically via `getAllKeys()`, not a
+    hardcoded key list, so the new storage key is covered automatically.
+  - **Full sweep confirmed clean**: every other screen checked
+    individually (`place-detail.tsx`, `update-detail.tsx`,
+    `sos-history.tsx`, `terms.tsx`/`privacy-policy.tsx`,
+    `notifications.tsx`) plus a broader grep of every
+    `useState(true|false)` call across `app/`/`src/` — nothing else
+    found. `onboarding/medical.tsx`'s accessibility toggles were
+    double-checked specifically (they read like settings) and are
+    correctly wired to real persistence. **Audit is closed** — don't
+    re-run it from scratch; it should only resurface if new
+    screens/features are added.
+- **User-requested UX/functionality batch (2026-09-12, 14 items from
+  screenshots + chat), all DONE and verified (clean tsc, jest, web
+  export):** voice mic-interrupt (tap-to-interrupt while ResQ is
+  speaking/thinking) plus voice-only barge-in (interrupt by speaking,
+  not just tapping); SOS entry/exit confirmed already correct
+  (`router.push`/`router.back()`, single entry point — no code change
+  needed, just verified); pull-to-refresh on Family and Safe places
+  (`Screen`'s shared `onRefresh`/`refreshing` pattern); the
+  guidance-result "Continue chat with ResQ" button (seeds `/chat` with
+  the specific disaster-guidance topic via a `topic` param); native
+  iOS/Android voice input wiring; chat.tsx composer/keyboard spacing fix
+  (`marginBottom: Math.max(insets.bottom, 16)` replacing dead fixed
+  space) and a mic⇄send icon toggle keyed off `useKeyboardVisible.ts`;
+  full chat/voice conversation persistence via `chatService.ts`
+  (encrypted via `secureStorage`, seed-once-from-mock pattern, both
+  `useChat.ts` and `useVoiceAssistant.ts` wired to save on every turn —
+  tested in `__tests__/chatService.test.ts`); profile.tsx's
+  loading-flash fix (was rendering `LoadingState` and the full mock-
+  fallback UI simultaneously; now gated behind `isInitialLoad`);
+  family-member.tsx hero-card redesign; and the navbar-hide-delay fix,
+  corrected mid-session to use `beforeRemove` in
+  `useHideTabBar.ts`/`NavVisibilityContext.tsx` after an initial
+  attempt only covered explicit button taps — `beforeRemove` fires for
+  gestures, hardware back, and browser back too, on all three
+  platforms (see Verified Findings for why this is the general fix for
+  this whole class of bug).
+- **Dependency update pass (2026-09-12), user-requested ("update it
+  without breaking anything and 0 vulnerabilities").**
+  - **First real `npm install` in this project's history** — this
+    sandbox's network allowlist covers the npm registry (previous
+    sessions assumed no network at all; that was only true for
+    `expo.dev`, which `expo install`/`expo install --check` need and
+    which is still unreachable — confirmed directly, see Verified
+    Findings). This unblocks real verification going forward instead of
+    the syntax-only checks prior sessions were limited to.
+  - **Expo SDK 57 companion packages bumped to what `expo@57.0.22`
+    itself designates as compatible** — `expo` `~57.0.21` → `~57.0.22`,
+    plus `expo-blur`, `expo-constants`, `expo-crypto`, `expo-dev-client`,
+    `expo-haptics`, `expo-image-picker`, `expo-linear-gradient`,
+    `expo-linking`, `expo-location`, `expo-notifications`, `expo-router`,
+    `expo-secure-store`, `expo-splash-screen`, `expo-video` each bumped
+    one patch version to match. Determined without `expo install
+    --check` (unreachable, see above) by downloading `expo@57.0.22`'s
+    tarball and diffing its bundled `bundledNativeModules.json` — the
+    same manifest `expo install --check` itself reads — against the
+    installed `57.0.21` copy; this is exactly what produced the "14
+    other packages may need updating" the user saw. `react`,
+    `react-native`, `maplibre-gl`, `lucide-react-native`, `jest`,
+    `typescript`, `react-native-gesture-handler`, and the other
+    "Latest"-column jumps `npm outdated` showed are deliberately **not**
+    applied — they're outside SDK 57's compatibility set (e.g.
+    `react-native@0.87.1`, `jest@30`, `typescript@7`) and bumping them
+    would risk exactly the breakage the user asked to avoid.
+  - **Two real, pre-existing bugs surfaced by finally having a working
+    install** (both predate this session; neither was introduced by the
+    version bump):
+    1. `app/chat.tsx`'s `backdropFill` style used
+       `StyleSheet.absoluteFillObject`, which doesn't exist on RN's
+       `StyleSheet` (confirmed against `react-native`'s own `.d.ts` —
+       only `absoluteFill`, an already-built style object, exists).
+       Fixed: `{ ...StyleSheet.absoluteFillObject }` →
+       `StyleSheet.absoluteFill` (drop-in, since it's used inside a
+       style array). This was a real `tsc --noEmit` failure, invisible
+       to every prior session's `transpileModule`-based syntax check.
+    2. `jest.config.js` had no resolver/mock wiring for
+       `react-native-worklets` (reanimated 4.x's split-out native
+       runtime) — `chat.tsx`'s smoke test crashed at require-time
+       (`Cannot read properties of undefined (reading 'loadUnpackers')`)
+       because Jest was resolving worklets' `.native.ts` entry, which
+       needs a real native module that doesn't exist under Jest. Fixed
+       per worklets' own docs (docs.swmansion.com/react-native-worklets/
+       docs/guides/testing): added `resolver:
+       'react-native-worklets/jest/resolver'` to `jest.config.js`, which
+       makes Jest resolve worklets' JS/web implementation instead. This
+       was the exact gap flagged in the prior session's Known Gaps
+       ("whether the Gesture.Pan()/reanimated drawer... was reasoned
+       through by hand, not run") — `chat.tsx`'s smoke test now actually
+       mounts and passes instead of being silently uncovered.
+  - **Full real verification, all green**: `npm audit` → 0
+    vulnerabilities (856 prod + 86 dev + 13 optional + 11 peer deps
+    scanned). `npx tsc --noEmit` → clean. `npx jest --config
+    jest.config.js` → 4/4 suites, 54/54 tests pass (up from 53 — no new
+    tests added, `chat.tsx`'s smoke test now actually runs instead of
+    crashing before assertions). `npx expo export --platform web` → all
+    35 routes bundle. Re-verified after a clean `npm ci` (lockfile
+    consistency check) to make sure the working tree wasn't hiding a
+    stale `node_modules` accident. `public/vendor/*.mjs` reconfirmed
+    byte-identical (md5sum) to `node_modules/maplibre-gl/dist/` after the
+    reinstall, and the exported bundle still contains both
+    `setWorkerUrl` and the `.maplibregl-marker{position:absolute` CSS fix
+    from the prior v6 migration — the maplibre worker-sync mechanism
+    (Important Decisions, below) survived the dependency bump intact.
+  - `overrides` (`decode-uri-component@^0.5.0`, `uuid@^11.1.1` — see
+    Important Decisions for what these fix) still resolve correctly
+    post-bump, reconfirmed via `npm ls`.
 
 - **Voice conversation page + SOS layout fix (2026-09-11 session 2).**
   - **SOS UI bug, fixed at the root cause**: `Screen.tsx`'s
@@ -92,18 +368,15 @@ per the standard workflow.
     listening and while ResQ talks. Reached from a new mic button next to
     Home's "Ask ResQ" composer row; registered in `_layout.tsx` and the
     smoke test's `staticScreens`.
-  - **Speech-to-text is real on web, honestly unavailable on native.**
-    `src/services/voiceService.ts` (native) / `.web.ts` (web) — the same
-    platform-file pattern as `MiniMap.tsx`/`MiniMap.web.tsx`.
-    `voiceService.web.ts` wires the browser's actual `SpeechRecognition`/
-    `webkitSpeechRecognition` API (zero install, genuinely works in
-    Chrome/Edge/Safari today). `voiceService.ts` (native) reports
-    `available: false` with a clear reason and never fabricates a
-    transcript — real on-device STT needs `expo-speech-recognition`
-    (community package, config plugin + dev-client rebuild), which can't
-    be installed/linked/verified in this sandbox (no network access, see
-    Verified Findings). `voice.tsx` falls back to a typed-input composer
-    on native; the reply still comes back with full text-to-speech.
+  - **Speech-to-text: real on both native and web.** `src/services/
+    voiceService.ts` (native) / `.web.ts` (web) — the same platform-file
+    pattern as `MiniMap.tsx`/`MiniMap.web.tsx`. `voiceService.web.ts`
+    wires the browser's actual `SpeechRecognition`/
+    `webkitSpeechRecognition` API. `voiceService.ts` (native) wraps
+    `expo-speech-recognition` (iOS `SFSpeechRecognizer`/Android
+    `SpeechRecognizer`) — added and wired in the 2026-09-12 UX batch
+    below; requires a dev-client build (not Expo Go). `voice.tsx` falls
+    back to a typed-input composer only if neither path is available.
   - **`src/services/ttsService.ts`** wraps `expo-speech` with a
     safety-net timeout (word-count-based estimate) so a misfire of
     `onDone`/`onStopped`/`onError` — a real, tracked issue on some web
@@ -117,13 +390,8 @@ per the standard workflow.
     input where the platform provides it, a word-boundary pulse while
     ResQ speaks, and a gentle synthetic pulse fallback in between so the
     orb is never visibly dead when no real signal is available.
-  - **Verification**: no `node_modules` in this sandbox (standing
-    constraint, see Verified Findings), so no `tsc --noEmit`/jest/`expo
-    export` run was possible this session. Every new/edited file was
-    instead syntax-checked via TypeScript's `transpileModule` (a real
-    JSX/TS parse, independent of module resolution) — all clean, zero
-    errors. This confirms syntactic correctness only, not a real
-    build/typecheck/runtime pass — see Known Gaps.
+  - Not yet run on a real device — see Known Gaps for what's still
+    unverified (drawer gesture feel, native TTS/STT round-trip).
 
 - **Navigation/UX fix pass (2026-09-11), user-reported.**
   1. **Systemic nav fix.** Every "back" action that used
@@ -193,15 +461,18 @@ per the standard workflow.
     clean. No `tsc --noEmit`/jest/`expo export` run this session (see
     Known Gaps).
 
-- **Phases 0–2 complete** (stop-lying-to-the-user pass, full safety
-  product, legal/privacy baseline) — see PROGRESS.md §1 for the table.
+- **Phases 0–2 complete**: stop-lying-to-the-user pass (removed fake
+  "done" states that had no real data behind them), full safety product
+  (SOS, medical profile, family circle, safe places, disaster guidance
+  all wired to real local persistence), and a legal/privacy baseline
+  (data-safety docs, privacy policy, terms — see `docs/data-safety.md`).
 - **Real maps, both platforms.** `src/components/MiniMap.shared.tsx` +
   `MiniMap.tsx` (native, MapLibre RN + OpenFreeMap) +
-  `MiniMap.web.tsx` (web, MapLibre GL JS v6 + the same OpenFreeMap
+  `MiniMap.web.tsx` (web, MapLibre GL JS + the same OpenFreeMap
   tiles) — wired into `safe.tsx`, `place-detail.tsx`, `family-member.tsx`,
-  and (2026-09-11) `sos.tsx`'s confirmed screen. See PROGRESS.md §3.1 for
-  the original SDK-choice rationale and "Important Decisions" below for
-  the 2026-09-11 v5→v6 security bump.
+  and (2026-09-11) `sos.tsx`'s confirmed screen. Full SDK rationale and
+  version history under Data Model & Pages Reference and Important
+  Decisions.
 - **Web markers weren't rendering — missing `.maplibregl-marker` CSS
   (2026-09-11).** Root cause: `maplibre-gl`'s `Marker` only sets
   `transform` on its wrapper, relying on `maplibre-gl.css`'s
@@ -211,8 +482,8 @@ per the standard workflow.
   adding just that rule to the existing injected `<style>` tag. Two other
   hypotheses (a v6 `isStyleLoaded()` change; the
   `setMissingStyleImageResolver()` console warnings) were checked and
-  ruled out first — see Verified Findings for the `Marker` mechanism, full
-  narrative in PROGRESS.md. Verified at the build level only — `tsc
+  ruled out first — see Verified Findings for the `Marker` mechanism.
+  Verified at the build level only — `tsc
   --noEmit` clean, all 53 jest tests pass, `expo export --platform web`
   bundles all 34 routes, and the exported bundle greps confirm
   `.maplibregl-marker{position:absolute` is present in the output JS (see
@@ -237,33 +508,31 @@ per the standard workflow.
 - **At-rest encryption** for profile/medical/family data
   (`secureStorage.ts`).
 - **Signed release build workflow** exists but has no real credentials
-  wired in (portfolio-scope, not a blocker — see PROGRESS.md §3.2).
+  wired in (portfolio-scope, not a blocker).
 
 ## Known Gaps
 
-- **Voice page + nav/UX pass (2026-09-11 session 2) verified at the
-  syntax level only — no `npm install` was possible this session** (no
-  network access in this sandbox; standing constraint, see Verified
-  Findings). Every touched file was parsed clean via TypeScript's
-  `transpileModule`, which catches malformed JSX/TS but proves nothing
-  about: whether `expo-speech@~57.0.3` actually resolves/installs
-  cleanly against this project's exact dependency tree; whether the
-  `Gesture.Pan()`/reanimated drawer in `chat.tsx` actually animates
-  correctly on a real device/simulator (the sign convention, clamping,
-  and velocity-based close threshold were reasoned through by hand, not
-  run); whether `expo-speech`'s actual on-device behavior matches its
-  documented API surface; or whether the browser `SpeechRecognition`
-  path in `voiceService.web.ts` behaves as expected in a real browser.
-  **Before trusting this work**: run `npm install`, then `npx tsc
-  --noEmit`, `npx jest --config jest.config.js` (the new
-  `jest.mock('expo-speech', ...)` in `smoke.test.tsx` needs real
-  `expo-video`-style validation — confirm it doesn't mask an import
-  error), and `npx expo start --web` to manually open `/voice` and
-  `/chat`'s drawer and confirm both the orb animation and the swipe
-  gesture behave as designed. Also worth a native run
-  (`expo run:ios`/`android` via a dev-client build) to confirm
-  `expo-speech`'s TTS actually speaks and `onBoundary`/`onDone` fire as
-  expected there — this was reasoned from Expo's docs, not observed.
+- **Voice page + nav/UX pass (2026-09-11 session 2) — now verified at
+  the build/test level (2026-09-12), not just syntax.** `npm install`
+  succeeded for the first time this project has had it available; `tsc
+  --noEmit`, the full jest suite (including `chat.tsx`'s previously-
+  never-run smoke test), and `expo export --platform web` all pass —
+  see Completed Work above for the two real bugs this surfaced and
+  fixed. What's still **not** verified, because none of the above
+  exercises it: whether the `Gesture.Pan()`/reanimated drawer in
+  `chat.tsx` actually *feels* right on a real device/simulator (the sign
+  convention, clamping, and velocity-based close threshold were reasoned
+  through by hand — the smoke test only confirms it mounts without
+  throwing, not that the gesture behaves correctly); whether
+  `expo-speech`'s actual on-device TTS behavior matches its documented
+  API surface (`onBoundary`/`onDone` firing as expected); or whether the
+  browser `SpeechRecognition` path in `voiceService.web.ts` behaves as
+  expected in a real browser. **Before trusting this remaining part**:
+  `npx expo start --web`, manually open `/voice` and `/chat`'s drawer,
+  confirm the orb animation and swipe gesture behave as designed. A
+  native run (`expo run:ios`/`android` via a dev-client build) would
+  confirm the TTS/STT native behavior — still unverified in any sandbox
+  so far.
 - **No backend.** Everything is mock data today.
 - **Web map v6 migration + the marker-CSS fix above are both verified at
   the build/bundle level only** — `tsc`, the full jest suite, and a real
@@ -287,8 +556,7 @@ per the standard workflow.
   assuming the CSS fix itself was wrong.
 - Signed-release workflow has no real credentials; legal docs aren't
   publicly hosted or counsel-reviewed — both fine under this project's
-  portfolio scope, both real gaps if that scope ever changes (see
-  PROGRESS.md §3.2).
+  portfolio scope, both real gaps if that scope ever changes.
 - No eslint config exists in the repo (`npm run lint` / `expo lint` would
   prompt to create one interactively) — not treated as a gap under this
   project's portfolio scope, noting it here so it isn't mistaken for an
@@ -296,20 +564,108 @@ per the standard workflow.
 
 ## Resume Here
 
-No open task. The most recent work (voice page + nav/UX pass, 2026-09-11
-session 2) is the least-verified thing in this repo right now — if
-picking this up next, start there: `npm install`, `npx tsc --noEmit`,
-`npx jest`, then `npx expo start --web` and manually check `/voice` and
-`/chat`'s drawer swipe (see Known Gaps above for exactly what to look
-for). After that, the web map (v6 migration + the marker-CSS fix) is the
-next thing that's only been verified at the build level, never in a real
-browser — `npx expo start --web`, open `/safe` (or any MiniMap screen),
-confirm markers are visible. Otherwise: read PROGRESS.md §1 (status
-table) for the phase overview, then whichever §3.x section matches what
-you're about to touch.
+**Open task: the critical/premium-quality review (see TODO above) — not
+started.** The hardcoded-data audit that preceded it is fully closed and
+verified (2026-09-13) — don't redo it. Start the review by writing a
+short scoping plan (which screens, what counts as in-scope functional/UX
+issue vs. a visual-design opinion the upcoming redesign session owns
+instead), then work through screens systematically, proposing fixes as
+real issues are found rather than a pure critique document.
+
+Two longstanding items still need a real browser/device, which no
+sandbox here has had yet: (1) `/voice` and `/chat`'s drawer swipe —
+`npx expo start --web`, manually check the orb animation and gesture
+feel (see Known Gaps); (2) the web map (MapLibre v6 migration +
+marker-CSS fix) — open `/safe` or any MiniMap screen, confirm tiles
+load and markers appear at the right spot. Otherwise: the Data Model &
+Pages Reference section above has the current status of every screen —
+check there before assuming something is unbuilt.
 
 ## Important Decisions
 
+- **Planned: backend-assisted voice barge-in, once a real backend
+  exists (not yet implemented — this is a forward-looking design note,
+  written 2026-09-12 per a direct request to plan it for later).**
+  Today's voice-activated interrupt (`startBargeInListener` in
+  `useVoiceAssistant.ts`) is honestly best-effort: without headphones,
+  the mic picks up ResQ's own TTS output from the speaker along with the
+  user's real speech, so it can false-trigger on ResQ's own words. Real
+  assistants (Siri, Alexa) solve this with **acoustic echo cancellation
+  (AEC)** — the device already knows exactly what audio it's currently
+  playing out the speaker, so a DSP stage subtracts that known signal
+  from the mic input before it ever reaches speech recognition, leaving
+  only what the user actually said. Two concrete paths once a backend
+  exists, roughly in order of how much they buy vs. cost to build:
+  1. **`expo-speech-recognition`'s `iosVoiceProcessingEnabled` option**
+     (already wired into `voiceService.ts` as of this session) turns on
+     iOS's own `AVAudioEngine` voice-processing I/O unit, which does
+     real hardware/OS-level AEC — this is very likely "enough" on its
+     own for iOS once the native build is actually running on a device
+     (untested here — no device available in this sandbox). No backend
+     needed for this part; it's already in place, just unverified.
+  2. **True backend-assisted AEC** (the more complete fix, and what the
+     "dedicated audio processing" comment in `useVoiceAssistant.ts`
+     refers to): once a real backend exists and TTS audio is
+     streamed/generated server-side rather than played by-name from
+     `expo-speech`, the reference signal (exactly what's being played)
+     can be sent alongside the mic stream to a server-side AEC/VAD
+     (voice-activity-detection) pass before treating anything as a
+     genuine interruption — this is the only way to fully solve it on
+     Android, which has no equivalent to iOS's voice-processing unit
+     exposed through this library. Concretely: the backend's streaming
+     TTS endpoint would need to expose the audio it's currently sending
+     (or a timestamp/marker stream) so the client can pair it with the
+     concurrent mic capture, and either do local AEC (if a suitable RN
+     module exists by then) or forward both streams to a backend AEC
+     service. Revisit this once Phase 3 (backend) is underway — not
+     before, since it's meaningless to design the exact API shape
+     against a backend that doesn't exist yet.
+  Until then: `iosVoiceProcessingEnabled: true` is already set (best
+  available mitigation with zero backend), tap-to-interrupt remains the
+  fully reliable fallback on every platform, and the limitation is
+  documented in-code (`useVoiceAssistant.ts`) and to the user rather than
+  silently shipped as if it were flawless.
+  - **2026-09-12 follow-up: researched whether a no-backend, cross-
+    platform (web + iOS + Android) npm library could close this gap now,
+    the same way `expo-speech-recognition` closed the native-STT gap.
+    Conclusion: no, and here's why, so this isn't re-researched later
+    without cause.** The honest constraint, confirmed via a browser
+    engineering write-up on exactly this failure mode: browser AEC
+    (`echoCancellation: true` in `getUserMedia`) only treats audio as a
+    cancelable reference if it arrives via the browser's own recognized
+    playback paths — a real `<audio>` element or a WebRTC remote track.
+    Locally-synthesized speech (`speechSynthesis`/Web Speech API — what
+    `expo-speech`'s web implementation actually uses, confirmed by
+    reading `ttsService.ts`) does not register as a reference signal no
+    matter how AEC is configured. The one credible-looking client-side
+    fix found (`reflex-aec`, an npm package doing real digital AEC via
+    an AudioWorklet, no ML, no backend, claiming Safari iOS support) was
+    evaluated and rejected on inspection, not on reputation alone: (1)
+    its `playBotAudio(audioData: ArrayBuffer)` API requires the TTS
+    engine itself to hand over raw synthesized audio bytes — `expo-
+    speech`'s `Speech.speak(text)` never exposes any such bytes, so
+    adopting it would mean replacing this app's TTS engine entirely
+    (with, e.g., a cloud TTS API that returns audio data), which is a
+    materially bigger and riskier change than it looks and defeats the
+    "save work for backend side" goal, since a full TTS-engine swap is
+    backend-shaped work either way; (2) it is browser-only — no
+    `AudioWorkletNode`/`getDisplayMedia`/`AudioContext` exist in React
+    Native's JS runtime, so it could only ever help the web build, not
+    iOS/Android; (3) it's a brand-new, single-maintainer, zero-star
+    package with no track record — not a bar this app's other
+    dependencies are held to lightly. Also checked for a cross-platform
+    RN wrapper around the OS-level primitives every serious AEC solution
+    actually uses under the hood (iOS `AVAudioEngine`/`VoiceProcessingIO`,
+    Android `AcousticEchoCanceler`) — none exists as a maintained Expo/RN
+    package; the closest analog found is Flutter-only. **Net result:
+    `iosVoiceProcessingEnabled: true` (already in place) remains the
+    correct, genuinely-real no-backend answer for iOS — it's the same
+    underlying hardware AEC mechanism other serious solutions wrap —
+    and web/Android have no comparable no-backend option worth adopting
+    today.** The backend-assisted path above (§2) is still the right
+    long-term fix for web and Android; nothing here changes that plan,
+    it just confirms skipping straight to a library wasn't the shortcut
+    it might have looked like.
 - **Map SDK: MapLibre + OpenFreeMap** (not `react-native-maps`, not
   Google/Apple Maps) — no API key needed on any platform. Native uses
   `@maplibre/maplibre-react-native@^11.3.10`.
@@ -389,18 +745,92 @@ you're about to touch.
   pattern over a `Platform.OS` conditional `require()` when the two
   paths are substantial, since Metro excludes the other platform's file
   from the bundle entirely rather than just skipping it at runtime.
-- **Project goal clarified as portfolio-quality, not a real store
-  launch** — changes which Phase 2/5 items are real blockers vs. already
-  "complete enough." See PROGRESS.md's "Working assumptions."
-- Full list of smaller decisions (encryption scheme, theming convention,
-  data-safety mapping, etc.) — see PROGRESS.md §1 and the relevant §3.x.
+- **Project goal clarified as portfolio/resume-quality, not a real store
+  launch (2026-09-10).** The app will not actually be submitted to the
+  Play Store or App Store. This changes which *business/legal* steps
+  count as real blockers, not the engineering bar — every phase is still
+  built to a genuinely working, non-placeholder standard. Concretely:
+  real signing credentials for the release workflow, legal-counsel
+  review of the Privacy Policy/Terms, and publicly hosting those legal
+  docs are not blockers under this scope, since there's no real
+  submission they'd be gating — they're recorded as real gaps to revisit
+  only if that scope ever changes (see Known Gaps).
+- Other smaller decisions worth knowing: guest mode gets full SOS access
+  (not a deliberate SOS-specific choice — `sos.tsx` sits in the same
+  `Stack.Protected` group as the rest of the authenticated app, and
+  guest sessions land there by existing design; worth narrowing later if
+  a session wants to hide the on-device SOS history log for guests
+  specifically). `readinessService.ts`'s score is a straight percentage
+  of checklist completion — an explicit placeholder, not a final
+  formula; a real backend should factor in more (profile completeness,
+  check-in recency, etc.).
 
 ## Verified Findings
 
-- `expo install` fails in network-restricted sandboxes (hits expo.dev's
-  version-compatibility API, not npm) — use plain `npm install
-  <pkg>@<version>` instead; confirm the version is real first with
-  `npm view <pkg> versions`.
+- **This app runs on web, iOS, and Android, and each platform's primary
+  "go back" mechanism is different — any fix for "the tab bar/UI state
+  doesn't update on back navigation" must account for all of them, not
+  just an on-screen button.** Concretely: an explicit on-screen back
+  button (universal, but not how most users actually go back most of the
+  time), Android's hardware back button and edge swipe gesture, iOS's
+  edge swipe-back gesture, and the browser's own back/forward buttons on
+  web. A fix that only hooks a screen's own button onPress handler (the
+  first attempt at the navbar-delay fix below) silently misses every one
+  of the other three — caught directly by the user, not by testing,
+  since nothing in this sandbox can exercise a real gesture or hardware
+  button. **The general, correct fix for this class of problem is
+  React Navigation's `beforeRemove` core event**
+  (`useNavigation().addListener('beforeRemove', ...)` — see
+  reactnavigation.org/docs/navigation-events#beforeremove, available
+  directly from `expo-router`'s own `useNavigation` export, no extra
+  package needed): it fires for every removal path uniformly, because
+  button taps, gestures, hardware back, and browser back all dispatch
+  the same kind of "remove this route" navigation action under the hood,
+  and it fires before the transition animation starts, not after. One
+  listener replaces needing separate BackHandler (Android)/gesture
+  (iOS)/popstate (web) handling. Reach for this any time a screen needs
+  to react to "the user is leaving," not a per-button `onPress` override
+  — see `useHideTabBar.ts` for the worked example and AGENT.md's
+  Completed Work entry on the navbar delay for the full before/after.
+- **Sandbox network reaches the npm registry but not `expo.dev`
+  (confirmed 2026-09-12).** Earlier sessions assumed no network at all;
+  that was wrong — `npm install`/`npm ci`/`npm view`/`npm pack` all work
+  fine here. What actually fails is `expo install` and `expo install
+  --check` specifically, because they call an `expo.dev` version-
+  compatibility API (confirmed via the exact error: `fetchWithCredentials`
+  in `@expo/cli` gets an HTML "Host not i[n allowlist]" response instead
+  of JSON). **Workaround that doesn't need `expo.dev` at all**: the
+  installed `expo` package ships its own compatibility manifest at
+  `node_modules/expo/bundledNativeModules.json` — this is the same data
+  `expo install --check` reads. To find what a newer `expo` patch/minor
+  wants, `npm pack expo@<version>` into a scratch dir and diff its copy
+  of that file against the installed one; every `expo-*` package listed
+  there should be bumped to match, and packages *not* listed there
+  (`react`, `react-native`, third-party libs) should NOT be bumped
+  off the back of `npm outdated`'s "Latest" column alone — that column
+  ignores Expo SDK compatibility entirely.
+- Use plain `npm install <pkg>@<version>` for anything `expo install`
+  would otherwise handle; confirm the version is real first with `npm
+  view <pkg> versions`.
+- **A native Expo Module (real native iOS/Android code, e.g.
+  `expo-speech-recognition`) installs cleanly via plain `npm install` in
+  this sandbox and its TypeScript types can be verified for real —
+  `npm install` doesn't need to compile any native code, only fetch the
+  package and its JS/TS layer.** What genuinely cannot be verified here
+  is the native code actually *running* — that needs `expo prebuild` +
+  Xcode/Android Studio + a real device or simulator, none of which exist
+  in this sandbox. So for any native-module task: install for real,
+  typecheck the integration against the library's real (not
+  remembered/guessed) type definitions, add whatever jest mock the
+  module needs to keep the test suite passing (see the
+  `react-native-worklets` and `expo-speech-recognition` entries in this
+  file for two examples of the same underlying issue — "Cannot find
+  native module X" under Jest, fixed with a mock, not a real
+  workaround), and be explicit with the user that the device-level
+  behavior itself is unverified and needs their own build to confirm.
+  This is meaningfully more real progress than declining to touch native
+  modules at all, and meaningfully more honest than claiming they're
+  "done" without that caveat.
 - `jest-expo`'s default test platform reports `Platform.OS === 'ios'`,
   not `'web'` — a `.web.tsx` platform-file sibling is never picked up by
   the existing Jest config; native `.tsx` files are what smoke tests
@@ -494,3 +924,21 @@ you're about to touch.
   "loading again, but I already have data to keep showing" (see
   `updates.tsx`'s `isInitialLoad`/`isRefreshing` split); using `loading`
   directly for both flashes the whole list away on every pull.
+- **`react-native-worklets` (reanimated 4.x's split-out native runtime)
+  needs explicit Jest wiring or any screen importing reanimated crashes
+  at require-time under Jest** (`Cannot read properties of undefined
+  (reading 'loadUnpackers')` — it tries to load a real native module
+  that doesn't exist in Jest's environment). Per the package's own docs
+  (docs.swmansion.com/react-native-worklets/docs/guides/testing), the
+  fix is a top-level `resolver: 'react-native-worklets/jest/resolver'`
+  in `jest.config.js` (forces resolution to worklets' web/JS
+  implementation instead of its `.native.ts` entry) — no per-test
+  `jest.mock()` needed. Already wired in this project's `jest.config.js`
+  as of 2026-09-12; don't remove it if `react-native-reanimated` or
+  `react-native-worklets` are ever bumped.
+- `StyleSheet.absoluteFillObject` is not a real React Native API —
+  confirmed against `react-native`'s own `.d.ts` (checked
+  `node_modules/react-native/types_generated/.../StyleSheetExports.d.ts`
+  directly). Only `StyleSheet.absoluteFill` exists (a ready-made style
+  object, not a template to spread) — use it directly wherever the old
+  `{ ...StyleSheet.absoluteFillObject }` pattern shows up.

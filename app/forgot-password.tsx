@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const logoSource = require('../assets/images/logo-mark.png');
 
 /**
- * Locally-simulated forgot-password flow (see PROGRESS.md Phase 0/3 — auth
+ * Locally-simulated forgot-password flow (see AGENT.md — auth
  * is a stub, so there's no real email to send yet). This exists so the
  * "Forgot?" link on login.tsx isn't a dead end; once real auth exists, only
  * `onSubmit` needs to call a real reset-request endpoint — the screen and

@@ -24,7 +24,7 @@ const INITIAL_STATE: DeviceLocationState = {
 };
 
 /**
- * Live device coordinates, wrapping expo-location — this is PROGRESS.md
+ * Live device coordinates, wrapping expo-location — this is AGENT.md
  * Phase 1's `useDeviceLocation()` item (§3/§7). Onboarding's
  * `app/onboarding/location.tsx` already uses the same
  * requestForegroundPermissionsAsync → getCurrentPositionAsync →

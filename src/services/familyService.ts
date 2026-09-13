@@ -108,7 +108,7 @@ export async function inviteFamilyMember(name: string, relation: string, phone?:
  * (fresh install, nothing real added yet) replaces the untouched
  * mockFamily.ts demo data outright — a user finishing onboarding should
  * see their own circle, not their circle mixed in with three people they
- * never added (see PROGRESS.md §4.3). Any later call (onboarding re-run
+ * never added (see AGENT.md). Any later call (onboarding re-run
  * after a logout, for instance) is additive instead, since by then the
  * stored circle is the user's real data and shouldn't be silently
  * replaced.
